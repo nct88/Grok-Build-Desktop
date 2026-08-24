@@ -118,6 +118,8 @@
       '<rect width="18" height="18" x="3" y="3" rx="2" ry="2"/><circle cx="9" cy="9" r="2"/><path d="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21"/>',
     message:
       '<path d="M7.9 20A9 9 0 1 0 4 16.1L2 22Z"/>',
+    wrap:
+      '<path d="M3 6h18"/><path d="M3 12h15a3 3 0 1 1 0 6h-4"/><polyline points="16 16 14 18 16 20"/><path d="M3 18h7"/>',
   };
 
   // Aliases so existing data-icon names keep working

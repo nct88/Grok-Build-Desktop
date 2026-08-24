@@ -3227,6 +3227,22 @@
     }
   }
 
+  function setFilePreviewWrap(wrap, persist = true) {
+    const isWrap = Boolean(wrap);
+    const editor = $("editorBody");
+    const diff = $("diffBody");
+    editor?.classList.toggle("no-wrap", !isWrap);
+    diff?.classList.toggle("no-wrap", !isWrap);
+    const btn = $("btnToggleWrap");
+    if (btn) {
+      btn.setAttribute("aria-pressed", isWrap ? "true" : "false");
+      btn.classList.toggle("active", isWrap);
+      const title = tt(isWrap ? "wrapEnabled" : "wrapDisabled", isWrap ? "Word wrap enabled" : "Word wrap disabled");
+      btn.title = `${tt("toggleWordWrap", "Toggle word wrap")} (${title})`;
+    }
+    if (persist) saveLayout({ filePreviewWrap: isWrap });
+  }
+
   function isTermOpen() {
     const dock = $("termDock");
     if (!dock) return false;
@@ -7444,6 +7460,7 @@
     workbench?.classList.toggle("explorer-collapsed", Boolean(L.fileExplorerCollapsed));
     workbench?.classList.toggle("preview-collapsed", Boolean(L.filePreviewCollapsed) && !L.fileExplorerCollapsed);
     setFileExplorerWidth(L.fileExplorerWidth || defaultFileExplorerWidth(), false);
+    setFilePreviewWrap(L.filePreviewWrap !== false, false);
     updateFilePaneControls();
     setSidebarVisible(L.sidebarVisible !== false);
     setPanelVisible(L.panelVisible !== false);
@@ -7559,6 +7576,10 @@
   $("btnToggleExplorer")?.addEventListener("click", () => {
     const collapsed = $("panelFiles")?.querySelector(".file-workbench")?.classList.contains("explorer-collapsed");
     setFilePaneCollapsed("explorer", !collapsed);
+  });
+  $("btnToggleWrap")?.addEventListener("click", () => {
+    const isNoWrap = $("editorBody")?.classList.contains("no-wrap");
+    setFilePreviewWrap(Boolean(isNoWrap), true);
   });
   $("btnTogglePreview")?.addEventListener("click", () => {
     const collapsed = $("panelFiles")?.querySelector(".file-workbench")?.classList.contains("preview-collapsed");

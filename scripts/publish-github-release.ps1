@@ -19,11 +19,12 @@ param(
 )
 
 $ErrorActionPreference = "Stop"
+$myDocs = [Environment]::GetFolderPath("MyDocuments")
 $windowsPowerShellModuleRoots = @(
-  (Join-Path ([Environment]::GetFolderPath("MyDocuments")) "WindowsPowerShell\Modules"),
-  (Join-Path $env:ProgramFiles "WindowsPowerShell\Modules"),
-  (Join-Path $PSHOME "Modules")
-) | Where-Object { Test-Path -LiteralPath $_ }
+  $(if ($myDocs) { Join-Path $myDocs "WindowsPowerShell\Modules" }),
+  $(if ($env:ProgramFiles) { Join-Path $env:ProgramFiles "WindowsPowerShell\Modules" }),
+  $(if ($PSHOME) { Join-Path $PSHOME "Modules" })
+) | Where-Object { $_ -and (Test-Path -LiteralPath $_) }
 $env:PSModulePath = $windowsPowerShellModuleRoots -join ";"
 Import-Module (Join-Path $PSHOME "Modules\Microsoft.PowerShell.Security\Microsoft.PowerShell.Security.psd1") -ErrorAction Stop
 $root = (Resolve-Path (Join-Path $PSScriptRoot "..")).Path

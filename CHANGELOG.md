@@ -2,6 +2,14 @@
 
 Public, versioned changes for Grok Build Desktop.
 
+## 0.5.43 — 2026-08-24
+
+- Updated File Preview and Review diff panes with responsive, soft-wrapping flex lines that dynamically adapt to pane and window resizing without horizontal overflow.
+- Added a "Toggle word wrap" button to the file preview header with an interactive `wrap` icon and persisted layout setting.
+- Ensured code line numbers stay top-aligned with selectable content indented cleanly when lines wrap.
+
+Release details are maintained in `docs/releases/0.5.43.md`.
+
 ## 0.5.42 — 2026-08-24
 
 - Fixed project and nested-chat navigation in the left sidebar so switching away from a running task no longer reconnects, stops or replaces its agent slot.
