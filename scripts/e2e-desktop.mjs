@@ -611,7 +611,22 @@ try {
   if (!/await ensureActiveTabAgent\(\)/.test(appSrc.slice(sendStart))) {
     throw new Error("send-time agent binding missing");
   }
-  ok("tab activation cache-only + send-time slot binding");
+  const alignStart = appSrc.indexOf("async function alignProjectWorkspace");
+  const openProjectStart = appSrc.indexOf("async function openProjectTab", alignStart);
+  const sidebarStart = appSrc.indexOf("function renderProjects()", openProjectStart);
+  const sidebarEnd = appSrc.indexOf("function renderProjectMenu()", sidebarStart);
+  const alignment = appSrc.slice(alignStart, openProjectStart);
+  const sidebar = appSrc.slice(sidebarStart, sidebarEnd);
+  if (alignStart < 0 || openProjectStart < 0 || sidebarStart < 0 || sidebarEnd < 0) {
+    throw new Error("sidebar project navigation blocks missing");
+  }
+  if (/connect\s*\(|resetToOne\s*\(/.test(alignment)) {
+    throw new Error("project alignment mutates agent or tab ownership");
+  }
+  if (!/openProjectTab\(p\)/.test(sidebar)) {
+    throw new Error("sidebar project header bypasses ownership-preserving navigation");
+  }
+  ok("tab/sidebar activation cache-only + send-time slot binding");
 } catch (e) {
   fail("tab runtime regression", e);
 }

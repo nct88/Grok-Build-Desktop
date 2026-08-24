@@ -391,10 +391,7 @@
       sessionTabs?.updateSession?.(sessionInfo.id, { cwd: movedCwd });
       if (activeSessionId === sessionInfo.id) {
         const noProject = Boolean(result?.isRecents) || isRecentsPath(movedCwd);
-        await selectProject(noProject ? null : movedCwd, {
-          reconnect: false,
-          freshChat: false,
-        });
+        await alignProjectWorkspace(noProject ? null : movedCwd);
         setStatus("starting", tt("movingChat", "Moving chat…"));
         await api.loadSession(sessionInfo.id, movedCwd, connectOpts());
         agentConnected = true;
@@ -747,6 +744,10 @@
       const skipPrevSnapshot = Boolean(tab.skipPrevSnapshot);
       tab.skipPrevSnapshot = false;
       if (prev && !skipPrevSnapshot) {
+        // Commit the last coalesced stream chunk before persisting the hidden
+        // tab. Otherwise a quick sidebar switch can show the chunk once but
+        // lose it from the tab snapshot on the next navigation.
+        streamBatcher?.flushNow?.();
         prev.items = sessionTabs.snapshotItems(eventStore.items);
         captureTabRuntime(prev);
       }
@@ -759,10 +760,10 @@
         const noProject = isRecentsPath(tabCwd);
         if (noProject) {
           if (workspaceRoot) {
-            await selectProject(null, { reconnect: false, freshChat: false });
+            await alignProjectWorkspace(null);
           }
         } else if (!samePath(tabCwd, workspaceRoot)) {
-          await selectProject(tabCwd, { reconnect: false, freshChat: false });
+          await alignProjectWorkspace(tabCwd);
         }
         // A fast second tab click supersedes this activation.
         if (sessionTabs.getActive() !== tab) {
@@ -1538,21 +1539,21 @@
   }
 
   /**
-   * Switch UI project (null = No project / Recents). Optionally reconnect agent.
+   * Align project-owned UI and persisted workspace state without touching any
+   * agent slot or conversation tab. Sidebar navigation must remain purely
+   * presentational so a running task in another project keeps its owner.
    * @param {string|null} root
-   * @param {{ reconnect?: boolean, freshChat?: boolean }} [opts]
+   * @param {{ extraRoots?: string[] }} [opts]
+   * @returns {Promise<boolean>}
    */
-  async function selectProject(root, opts = {}) {
+  async function alignProjectWorkspace(root, opts = {}) {
     const next = root ? String(root).trim() : null;
-    const reconnect = opts.reconnect !== false;
-    const freshChat = opts.freshChat !== false;
     const extrasIn = Array.isArray(opts.extraRoots) ? opts.extraRoots : undefined;
     if (samePath(next, workspaceRoot) && extrasIn === undefined) {
-      bindActiveTabWorkspace(next);
       renderProjects();
       renderProjectMenu();
       updateProjectChip();
-      return;
+      return true;
     }
     try {
       if (api.setWorkspace) {
@@ -1565,7 +1566,7 @@
       }
     } catch (e) {
       addMsg("error", e?.message || String(e));
-      return;
+      return false;
     }
     setWorkspace(next);
     if (bootstrap) {
@@ -1577,32 +1578,59 @@
         }
       }
     }
-    const startFresh = freshChat && !currentChatIsEmpty();
-    if (startFresh) {
-      resetTimeline();
-      activeSessionId = null;
-      editCount = 0;
-      reviews = [];
-      renderReviewList();
-      planDock.classList.add("hidden");
-      showEmpty();
-    } else if (currentChatIsEmpty()) {
-      eventStore.removeKind("empty");
-      showEmpty();
-    }
-    const heading = next ? basen(next) : tt("conversation", "Conversation");
-    sessionTabs?.resetToOne?.({
-      title: heading,
-      sessionId: startFresh ? null : sessionTabs?.getActive?.()?.sessionId || null,
-      cwd: effectiveWorkspace(next) || null,
-      items: startFresh ? [] : sessionTabs?.snapshotItems?.(eventStore.items) || [],
-      skipPrevSnapshot: true,
-    });
-    syncConvTitle(heading);
     void refreshHistory();
-    if (reconnect && (agentConnected || busy)) {
-      await connect(effectiveWorkspace(next), { forceRestart: true });
+    return true;
+  }
+
+  /** Open or restore the project-owned conversation selected in the sidebar. */
+  async function openProjectTab(root, opts = {}) {
+    const next = root ? String(root).trim() : null;
+    if (!(await alignProjectWorkspace(next, opts))) return null;
+
+    const cwd = effectiveWorkspace(next) || null;
+    const current = sessionTabs?.getActive?.();
+    const tabs = sessionTabs?.tabs || [];
+    const existing = [...tabs].reverse().find((tab) => samePath(tab.cwd, cwd));
+    if (existing) {
+      if (existing !== current) sessionTabs.activate(existing.id);
+      else bindActiveTabWorkspace(next);
+      return existing;
     }
+
+    const title = next ? basen(next) : tt("newConversation", "New chat");
+    const pristine = Boolean(current && !current.sessionId && !current.busy && currentChatIsEmpty());
+    if (pristine) {
+      const reused = sessionTabs.updateActive?.({
+        title,
+        sessionId: null,
+        cwd,
+        items: [],
+        pendingEvents: [],
+        promptQueue: [],
+        turnPhase: "idle",
+        turnStartedAt: 0,
+        phaseStartedAt: 0,
+        lastUsageFooter: "",
+        skipPrevSnapshot: true,
+      }) || current;
+      activeSessionId = null;
+      restoreStoreItems([]);
+      restoreTabRuntime(reused);
+      updateQueueBar();
+      showEmpty();
+      syncConvTitle(title);
+      return reused;
+    }
+
+    return sessionTabs?.addTab?.(
+      {
+        title,
+        sessionId: null,
+        cwd,
+        items: [],
+      },
+      true,
+    ) || null;
   }
 
   /**
@@ -4392,7 +4420,7 @@
       b.setAttribute("aria-expanded", "true");
       b.innerHTML = `<span class="project-ico" data-icon="folder" data-icon-size="14" aria-hidden="true"></span><span class="project-name">${escapeHtml(basen(p))}</span>`;
       b.title = p;
-      b.onclick = () => void selectProject(p);
+      b.onclick = () => void openProjectTab(p);
       block.appendChild(b);
       // Chats under every project (Codex always lists them)
       appendNestedChats(
@@ -4434,7 +4462,7 @@
         $("btnProject")?.setAttribute("aria-expanded", "false");
         if (value === "__open__") openProjectModal("open");
         else if (value === "__add__") openProjectModal("add");
-        else void selectProject(value || null);
+        else void openProjectTab(value || null);
       };
       menu.appendChild(b);
     };
@@ -4526,7 +4554,7 @@
     const primary = draftProjectFolders[0];
     const extras = draftProjectFolders.slice(1);
     closeProjectModal();
-    await selectProject(primary, { extraRoots: extras, reconnect: true, freshChat: true });
+    await openProjectTab(primary, { extraRoots: extras });
   }
 
   function looksLikeSessionIdTitle(s) {
@@ -4551,28 +4579,55 @@
     try {
       const cwd = s.cwd || "";
       const noProj = isRecentsPath(cwd);
-      // Align UI project with session cwd (Recents vs real project)
-      if (noProj) {
-        if (workspaceRoot) await selectProject(null, { reconnect: false, freshChat: false });
-      } else if (!samePath(cwd, workspaceRoot)) {
-        await selectProject(cwd, { reconnect: false, freshChat: false });
+      const project = noProj ? null : cwd;
+      if (!(await alignProjectWorkspace(project))) return;
+
+      // A sidebar chat row selects its existing owner when already open. This
+      // keeps its slot, queue, cached stream and runtime instead of duplicating
+      // or replacing the tab.
+      const existing = (sessionTabs?.tabs || []).find((tab) => tab.sessionId === s.id);
+      if (existing) {
+        if (sessionTabs.getActive?.() !== existing) sessionTabs.activate(existing.id);
+        prompt.focus();
+        return;
       }
+
+      const draft = [...(sessionTabs?.tabs || [])].reverse().find((tab) =>
+        samePath(tab.cwd, effectiveWorkspace(project)) &&
+        !tab.sessionId &&
+        !tab.busy &&
+        !(tab.pendingEvents || []).length &&
+        !(tab.promptQueue || []).length &&
+        (tab.items || []).every((item) => item.kind === "empty" || item.kind === "step"),
+      );
       setStatus("starting", tt("loadingCachedChat", "Loading cached chat…"));
       editCount = 0;
       reviews = [];
       renderReviewList();
       planDock.classList.add("hidden");
       sessionTabs?.saveSnapshot?.(eventStore.items);
-      sessionTabs?.addTab?.(
-        {
+      if (draft) {
+        sessionTabs.updateTab?.(draft.id, {
           title: s.title || "Chat",
           sessionId: s.id,
-          cwd: cwd || null,
+          cwd: (noProj ? getRecentsWorkspace() || "" : cwd) || null,
           items: [],
           deferLoad: true,
-        },
-        true,
-      );
+        });
+        if (sessionTabs.getActive?.() !== draft) sessionTabs.activate(draft.id);
+        else restoreStoreItems([]);
+      } else {
+        sessionTabs?.addTab?.(
+          {
+            title: s.title || "Chat",
+            sessionId: s.id,
+            cwd: cwd || null,
+            items: [],
+            deferLoad: true,
+          },
+          true,
+        );
+      }
       activeSessionId = s.id;
       syncConvTitle();
       await paintTranscript(s.id);
@@ -6382,7 +6437,7 @@
       return true;
     }
     if (action === "home") {
-      void selectProject(null, { reconnect: true, freshChat: false });
+      void openProjectTab(null);
       return true;
     }
     if (

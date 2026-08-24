@@ -1,6 +1,6 @@
 {
     "name":  "grok-build",
-    "version":  "0.5.41",
+    "version":  "0.5.42",
     "private":  true,
     "description":  "Grok Build Desktop — Electron agent app over official Grok CLI (ACP). Not Grok Build IDE.",
     "workspaces":  [
@@ -27,7 +27,7 @@
                     "check:brand":  "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/check-brand-assets.ps1",
                     "check:release":  "node scripts/check-release-contract.mjs",
                     "check:visual":  "node scripts/verify-desktop-layout.mjs \u0026\u0026 node scripts/verify-slash-menu.mjs \u0026\u0026 node scripts/verify-codex-session-ui.mjs \u0026\u0026 node scripts/verify-session-tabs.mjs \u0026\u0026 node scripts/verify-project-explorer.mjs \u0026\u0026 node scripts/verify-resizable-panes.mjs",
-                    "test":  "npm run build \u0026\u0026 node scripts/test-slash-commands.mjs \u0026\u0026 node scripts/test-syntax-highlight.mjs \u0026\u0026 node scripts/test-session-move.mjs \u0026\u0026 node scripts/test-session-context.mjs \u0026\u0026 node scripts/test-project-session-sync-ui.mjs \u0026\u0026 node scripts/e2e-desktop.mjs",
+                    "test":  "npm run build \u0026\u0026 node scripts/test-slash-commands.mjs \u0026\u0026 node scripts/test-syntax-highlight.mjs \u0026\u0026 node scripts/test-session-move.mjs \u0026\u0026 node scripts/test-session-context.mjs \u0026\u0026 node scripts/test-project-session-sync-ui.mjs \u0026\u0026 node scripts/test-sidebar-project-runtime.mjs \u0026\u0026 node scripts/e2e-desktop.mjs",
                     "test:live":  "node scripts/e2e-desktop.mjs",
                     "check":  "npm run check:arch \u0026\u0026 npm run check:packaging \u0026\u0026 npm run check:brand \u0026\u0026 npm run check:release \u0026\u0026 npm test \u0026\u0026 npm run check:visual"
                 },

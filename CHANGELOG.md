@@ -2,6 +2,15 @@
 
 Public, versioned changes for Grok Build Desktop.
 
+## 0.5.42 — 2026-08-24
+
+- Fixed project and nested-chat navigation in the left sidebar so switching away from a running task no longer reconnects, stops or replaces its agent slot.
+- Preserved project-owned tab state, queued prompts, elapsed runtime and cached background events, and replayed those events only when returning to their owning project.
+- Reused existing session tabs and pristine project drafts to avoid duplicate chats when selecting stored history.
+- Added a real-Electron regression covering project headers, nested chat rows, zero connect/stop calls, event isolation and return navigation.
+
+Release details are maintained in `docs/releases/0.5.42.md`.
+
 ## 0.5.41 — 2026-08-24
 
 - Added visible, accessible vertical separators for the sidebar, right panel and Files explorer/preview split, with mouse and keyboard resizing, bounded widths, reset and persisted layout state.
