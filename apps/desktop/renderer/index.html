@@ -86,15 +86,8 @@
         <section class="col conversation" id="colConv">
           <header class="conv-header">
             <div class="conv-title-wrap">
-                <h1 id="convTitle" class="conv-title">New conversation</h1>
-                <p id="workspaceLabel" class="conv-sub" data-i18n="noProject">No project</p>
-                <p id="sessionFlowStrip" class="session-flow-strip hidden" hidden></p>
-                <div id="gitStrip" class="git-strip hidden" title="Git status">
-                  <span class="git-branch" id="gitBranch">—</span>
-                  <span class="git-dirty hidden" id="gitDirty"></span>
-                  <span class="git-sync hidden" id="gitSync"></span>
-                  <a class="git-pr hidden" id="gitPr" href="#" target="_blank" rel="noreferrer"></a>
-                </div>
+              <span class="conv-project-icon" data-icon="folder" data-icon-size="15" aria-hidden="true"></span>
+              <h1 id="convTitle" class="conv-title" data-i18n="noProject">No project</h1>
             </div>
             <div class="conv-actions">
               <div id="usageChip" class="status-chip usage hidden" title="Session context">
@@ -116,6 +109,7 @@
               </div>
             </div>
           </header>
+          <span id="workspaceLabel" class="hidden" data-i18n="noProject" hidden>No project</span>
           <p id="cliUpdateBanner" class="cli-update-banner hidden" role="status"></p>
 
           <div id="sessionTabs" class="session-tabs" aria-label="Sessions"></div>
@@ -307,7 +301,7 @@
 
         <div class="splitter" id="split2" data-key="editorWidth" data-reverse="1"></div>
 
-        <aside class="col editor-pane" id="colEditor" style="width: 360px">
+        <aside class="col editor-pane" id="colEditor">
           <div class="editor-tabs">
             <button class="rtab active" data-panel="files" type="button" data-i18n="files">Files</button>
             <button class="rtab" data-panel="review" type="button" data-i18n="review">Review</button>
@@ -321,14 +315,47 @@
             </div>
             <button id="btnClosePanel" class="tab-x panel-close" type="button" data-i18n-title="hidePanel" title="Hide panel"><span data-icon="close" data-icon-size="12"></span></button>
           </div>
-          <div id="panelFiles" class="rpanel">
-            <div class="panel-bar">
-              <span class="panel-bar-title" data-i18n="filesTitle">Project files</span>
-              <span class="editor-path panel-bar-path" id="filesRoot">—</span>
+          <div id="panelFiles" class="rpanel files-panel">
+            <div class="file-workbench">
+              <section class="project-explorer" aria-labelledby="filesTitleLabel">
+                <div class="explorer-head">
+                  <div class="explorer-heading">
+                    <span class="panel-bar-title" id="filesTitleLabel" data-i18n="filesTitle">Project files</span>
+                    <span class="explorer-root" id="filesRoot">—</span>
+                  </div>
+                  <div class="explorer-actions">
+                    <button id="btnCollapseFiles" class="explorer-action" type="button" data-i18n-title="collapseFolders" title="Collapse folders" aria-label="Collapse folders">
+                      <span data-icon="chevronRight" data-icon-size="14"></span>
+                    </button>
+                    <button id="btnRefreshFiles" class="explorer-action" type="button" data-i18n-title="refreshFiles" title="Refresh project files" aria-label="Refresh project files">
+                      <span data-icon="refresh" data-icon-size="14"></span>
+                    </button>
+                  </div>
+                </div>
+                <div id="gitStrip" class="git-strip explorer-git hidden" title="Git status">
+                  <span class="git-branch" id="gitBranch">—</span>
+                  <span class="git-dirty hidden" id="gitDirty"></span>
+                  <span class="git-sync hidden" id="gitSync"></span>
+                  <a class="git-pr hidden" id="gitPr" href="#" target="_blank" rel="noreferrer"></a>
+                </div>
+                <div id="fileTree" class="file-tree" role="tree" data-i18n-aria="filesTitle" aria-label="Project files"></div>
+              </section>
+              <section class="file-preview-pane" aria-labelledby="editorPath">
+                <div class="file-preview-head">
+                  <div class="file-preview-title-wrap">
+                    <span class="editor-path" id="editorPath" data-i18n="selectFile">Select a file</span>
+                    <span class="file-preview-sub" id="editorRelativePath"></span>
+                  </div>
+                  <span class="language-badge hidden" id="editorLanguage"></span>
+                </div>
+                <div id="filePreviewEmpty" class="file-preview-empty">
+                  <span class="file-preview-empty-icon" data-icon="file" data-icon-size="22" aria-hidden="true"></span>
+                  <strong data-i18n="selectFile">Select a file</strong>
+                  <span data-i18n="selectFileHint">Choose a file in the project tree to preview it.</span>
+                </div>
+                <pre id="editorBody" class="editor-body hidden" tabindex="0"><code aria-live="polite"></code></pre>
+              </section>
             </div>
-            <div id="fileTree" class="file-tree"></div>
-            <div class="editor-path" id="editorPath" data-i18n="selectFile">Select a file</div>
-            <pre id="editorBody" class="editor-body"><code data-i18n="filePreview">// File preview</code></pre>
           </div>
           <div id="panelReview" class="rpanel hidden">
             <div class="panel-bar">
@@ -556,6 +583,14 @@
                 </div>
                 <div class="tools-actions">
                   <button class="pill-btn accent" data-cli="mcp list" type="button" data-i18n="listServers">List servers</button>
+                </div>
+                <div class="settings-group tools-group">
+                  <div class="settings-group-title" data-i18n="folderTrust">Project trust</div>
+                  <p class="field-hint" id="folderTrustStatus">Repo-local MCP, LSP and hooks run only after this folder is trusted.</p>
+                  <div class="tools-actions">
+                    <button id="btnHooksTrust" class="pill-btn accent" type="button" data-i18n="hooksTrust">Trust folder</button>
+                    <button id="btnHooksUntrust" class="pill-btn" type="button" data-i18n="hooksUntrust">Revoke trust</button>
+                  </div>
                 </div>
                 <div class="settings-group tools-group">
                   <div class="settings-group-title" data-i18n="mcpPresets">Quick add (recommended)</div>
@@ -1100,6 +1135,7 @@
   <script src="lib/agentSlotsUi.js"></script>
   <script src="lib/slashCommands.js"></script>
   <script src="lib/markdown.js"></script>
+  <script src="lib/syntaxHighlight.js"></script>
   <script src="lib/eventStore.js"></script>
   <script src="lib/streamBatcher.js"></script>
   <script src="lib/offthread.js"></script>

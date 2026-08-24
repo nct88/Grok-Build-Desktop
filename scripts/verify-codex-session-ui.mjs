@@ -100,6 +100,26 @@ try {
   await electronApp.evaluate(({ ipcMain, BrowserWindow }) => {
     ipcMain.removeHandler("agent:prompt");
     ipcMain.handle("agent:prompt", async () => ({ ok: true }));
+    ipcMain.removeHandler("agent:slots");
+    ipcMain.handle("agent:slots", async () => ({
+      connected: true,
+      state: "connected",
+      sessionId: "codex-visual-live",
+      workspace: "C:\\work\\grok-build",
+      activeSlotId: "primary",
+      maxSlots: 2,
+      slots: [{
+        id: "primary",
+        label: "Primary agent",
+        active: true,
+        workspace: "C:\\work\\grok-build",
+        sessionId: "codex-visual-live",
+        state: "connected",
+        warm: true,
+      }],
+    }));
+    ipcMain.removeHandler("agent:setActiveSlot");
+    ipcMain.handle("agent:setActiveSlot", async () => ({ ok: true, activeId: "primary" }));
     globalThis.__codexPathActions = [];
     ipcMain.removeHandler("shell:showItemInFolder");
     ipcMain.handle("shell:showItemInFolder", async (_event, target) => {

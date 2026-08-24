@@ -26,6 +26,12 @@
     return "";
   }
 
+  function promptDirective(lead, arg, label = "Request") {
+    const note = String(arg || "").trim();
+    if (!note) return lead;
+    return `${lead}\n${label}: ${note}`;
+  }
+
   /**
    * @typedef {{
    *   id: string,
@@ -42,6 +48,16 @@
   /** @type {SlashCommand[]} */
   const BUILTIN_COMMANDS = [
     { id: "new", label: "/new", hint: "Start a fresh chat", insert: "/new", aliases: ["clear"], expand: null },
+    { id: "resume", label: "/resume", hint: "Open chat history", insert: "/resume", expand: null },
+    {
+      id: "dashboard",
+      label: "/dashboard",
+      hint: "Open background tasks",
+      insert: "/dashboard",
+      aliases: ["agents-dashboard", "sessions"],
+      expand: null,
+    },
+    { id: "fork", label: "/fork", hint: "Spawn a parallel agent", insert: "/fork", expand: null },
     {
       id: "session-info",
       label: "/session-info",
@@ -108,9 +124,30 @@
       expand: null,
     },
     { id: "delete", label: "/delete", hint: "Delete this chat", insert: "/delete", expand: null },
+    { id: "quit", label: "/quit", hint: "Quit Desktop", insert: "/quit", aliases: ["exit"], expand: null },
+    { id: "home", label: "/home", hint: "Leave project (Recents)", insert: "/home", aliases: ["welcome"], expand: null },
     { id: "model", label: "/model", hint: "Switch model", insert: "/model ", aliases: ["m"], expand: null },
     { id: "effort", label: "/effort", hint: "Set reasoning effort", insert: "/effort ", expand: null },
     { id: "plan", label: "/plan", hint: "Switch to plan mode", insert: "/plan", expand: null },
+    {
+      id: "view-plan",
+      label: "/view-plan",
+      hint: "Open saved plans",
+      insert: "/view-plan",
+      aliases: ["show-plan", "plan-view"],
+      expand: null,
+    },
+    { id: "history", label: "/history", hint: "Open chat history", insert: "/history", expand: null },
+    { id: "compact-mode", label: "/compact-mode", hint: "Toggle compact layout", insert: "/compact-mode", expand: null },
+    {
+      id: "multiline",
+      label: "/multiline",
+      hint: "Enter inserts a newline",
+      insert: "/multiline",
+      aliases: ["ml"],
+      expand: null,
+    },
+    { id: "timestamps", label: "/timestamps", hint: "Toggle message times", insert: "/timestamps", expand: null },
     {
       id: "always-approve",
       label: "/always-approve",
@@ -144,6 +181,34 @@
           ? `Save this to memory now, without waiting for an automatic summary:\n${note}`
           : "Ask me what to remember, then save it to memory immediately.";
       },
+    },
+    {
+      id: "memory",
+      label: "/memory",
+      hint: "Browse or toggle memory",
+      insert: "/memory ",
+      aliases: ["mem"],
+      expand: (arg) =>
+        promptDirective(
+          "Use Grok memory tools for this request. If I said on/off, enable or disable memory. Otherwise list, show, or manage saved memories.",
+          arg,
+        ),
+    },
+    {
+      id: "flush",
+      label: "/flush",
+      hint: "Save session into memory now",
+      insert: "/flush",
+      expand: () =>
+        "Save this session's important knowledge to memory now. Summarize decisions, file paths and remaining work.",
+    },
+    {
+      id: "dream",
+      label: "/dream",
+      hint: "Consolidate memory topics",
+      insert: "/dream",
+      expand: () =>
+        "Run memory consolidation: merge session notes into organized topics and drop stale duplicates.",
     },
     {
       id: "feedback",
@@ -221,6 +286,105 @@
     { id: "plugins", label: "/plugins", hint: "Open plugins panel", insert: "/plugins", expand: null },
     { id: "skills", label: "/skills", hint: "Open skills panel", insert: "/skills", expand: null },
     { id: "mcps", label: "/mcps", hint: "Open MCP servers", insert: "/mcps", expand: null },
+    { id: "hooks", label: "/hooks", hint: "Open project trust / MCP", insert: "/hooks", expand: null },
+    { id: "hooks-trust", label: "/hooks-trust", hint: "Trust folder for MCP/LSP/hooks", insert: "/hooks-trust", expand: null },
+    {
+      id: "hooks-untrust",
+      label: "/hooks-untrust",
+      hint: "Revoke folder trust",
+      insert: "/hooks-untrust",
+      expand: null,
+    },
+    { id: "hooks-list", label: "/hooks-list", hint: "Show grok inspect", insert: "/hooks-list", expand: null },
+    { id: "hooks-add", label: "/hooks-add", hint: "Open .grok/hooks folder", insert: "/hooks-add", expand: null },
+    {
+      id: "hooks-remove",
+      label: "/hooks-remove",
+      hint: "Open .grok/hooks folder",
+      insert: "/hooks-remove",
+      expand: null,
+    },
+    {
+      id: "loop",
+      label: "/loop",
+      hint: "Recurring scheduled prompt",
+      insert: "/loop ",
+      expand: (arg) =>
+        promptDirective(
+          "Create a recurring scheduled task with scheduler_create (interval like 30m, 1h, 1d; minimum 60s). Confirm the job id so I can cancel it later.",
+          arg,
+        ),
+    },
+    {
+      id: "goal",
+      label: "/goal",
+      hint: "Set or manage an autonomous goal",
+      insert: "/goal ",
+      expand: (arg) =>
+        promptDirective(
+          "Use the /goal workflow. Arguments may be an objective, or status/pause/resume/clear. Keep the goal active until evidence review can reproduce the result.",
+          arg,
+        ),
+    },
+    {
+      id: "deep-research",
+      label: "/deep-research",
+      hint: "Start a research workflow",
+      insert: "/deep-research ",
+      expand: (arg) =>
+        promptDirective(
+          "Kick off a deep-research workflow: plan questions, gather sourced claims, cross-check independently, and report only claims that survive with source locators. Mark the report Partial if coverage is incomplete.",
+          arg,
+          "Query",
+        ),
+    },
+    {
+      id: "workflow",
+      label: "/workflow",
+      hint: "Launch or control a workflow",
+      insert: "/workflow ",
+      expand: (arg) =>
+        promptDirective(
+          "Use the workflow tool. Launch a named workflow, or pause/resume/stop/save using the session-unique display name.",
+          arg,
+        ),
+    },
+    { id: "workflows", label: "/workflows", hint: "Open running workflows", insert: "/workflows", expand: null },
+    { id: "theme", label: "/theme", hint: "Toggle color theme", insert: "/theme ", aliases: ["t"], expand: null },
+    {
+      id: "tutorial",
+      label: "/tutorial",
+      hint: "Open Grok Build docs",
+      insert: "/tutorial",
+      aliases: ["tour", "onboarding"],
+      expand: null,
+    },
+    {
+      id: "import-claude",
+      label: "/import-claude",
+      hint: "How to import Claude settings",
+      insert: "/import-claude",
+      expand: null,
+    },
+    {
+      id: "config-agents",
+      label: "/config-agents",
+      hint: "Open agent settings",
+      insert: "/config-agents",
+      aliases: ["agents"],
+      expand: null,
+    },
+    {
+      id: "personas",
+      label: "/personas",
+      hint: "Create or edit personas",
+      insert: "/personas ",
+      expand: (arg) =>
+        promptDirective(
+          "Help me create, edit, or list personas for subagents. Do not invent a Desktop modal — work with files and instructions.",
+          arg,
+        ),
+    },
     { id: "privacy", label: "/privacy", hint: "Coding data retention", insert: "/privacy", expand: null },
     { id: "login", label: "/login", hint: "Sign in to Grok", insert: "/login", expand: null },
     { id: "logout", label: "/logout", hint: "Sign out", insert: "/logout", expand: null },
@@ -233,7 +397,14 @@
       aliases: ["release-notes"],
       expand: null,
     },
-    { id: "doctor", label: "/doctor", hint: "Run grok doctor", insert: "/doctor", expand: null },
+    {
+      id: "doctor",
+      label: "/doctor",
+      hint: "Run grok doctor",
+      insert: "/doctor",
+      aliases: ["terminal-setup", "terminal-check", "terminal-info"],
+      expand: null,
+    },
   ];
   const COMMANDS = [...BUILTIN_COMMANDS];
 
@@ -435,6 +606,7 @@
     BUILTIN_COMMANDS,
     setRuntimeCommands,
     skillPrompt,
+    promptDirective,
     parseLeadingSlash,
     findCommand,
     resolveSlash,

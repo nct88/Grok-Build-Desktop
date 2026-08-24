@@ -2,6 +2,15 @@
 
 Public, versioned changes for Grok Build Desktop.
 
+## 0.5.40 — 2026-08-24
+
+- Preserved independent running tasks, prompt queues, elapsed runtime and cached content across session-tab switches, with persistent direct tab renaming.
+- Reworked Files into a dedicated lazy Project Explorer beside the preview, including folder/file hierarchy, language labels, useful states and safe refresh/retry behavior.
+- Added language-aware, line-numbered syntax coloring for common source, configuration and markup formats, while keeping large-file and unsupported-language fallbacks.
+- Simplified the session header to the project name and expanded Desktop's Grok CLI command/trust workflow, including `/hooks-trust` and MCP reconnect controls.
+
+Release details are maintained in `docs/releases/0.5.40.md`.
+
 ## 0.5.39 — 2026-08-20
 
 - Added workspace Grok skills (`/verify-ui`, `/use-mcp`, `/write-fix-log`, `/run-check`), always-on `.grok/rules`, and Chrome DevTools MCP so Desktop sessions know how to verify UI and call integrations.

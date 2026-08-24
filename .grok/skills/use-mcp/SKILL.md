@@ -31,6 +31,7 @@ grok mcp doctor
 ```
 
 - OAuth handshake fail → user authenticates in `/mcps` (`i`), then `r`.
+- Project untrusted → `/hooks-trust` (or Tools → MCP → Trust folder), then reconnect so repo-local servers start.
 - `chrome-devtools` down → confirm Node/npm/Chrome; config is `.grok/config.toml`.
 - Do not duplicate a healthy user server under a new name.
 

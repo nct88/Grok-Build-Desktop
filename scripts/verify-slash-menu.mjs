@@ -100,6 +100,7 @@ try {
     "context",
     "compact",
     "recap",
+    "hooks-trust",
     "context-watch",
     "keep-request-scope",
     "quota-handover",
@@ -126,14 +127,14 @@ try {
   await page.locator("#slashMenu").evaluate((menu) => {
     menu.scrollTop = menu.scrollHeight;
   });
-  await showMenu("/work", "dark");
+  await showMenu("/work-a", "dark");
   if ((await page.locator("#slashMenu").evaluate((menu) => menu.scrollTop)) !== 0) {
     failures.push("filtered menu retained a stale scroll position");
   }
 
   const filtered = await page.locator("#slashMenu .slash-item").allTextContents();
   if (filtered.length !== 1 || !filtered[0].includes("/work-analysis")) {
-    failures.push(`unexpected /work filter: ${JSON.stringify(filtered)}`);
+    failures.push(`unexpected /work-a filter: ${JSON.stringify(filtered)}`);
   }
   await page.screenshot({ path: path.join(evidenceDir, `${evidencePrefix}-filtered-dark-1000x640.png`) });
   await page.keyboard.press("Tab");
@@ -188,8 +189,8 @@ try {
   await page.evaluate(() => {
     globalThis.GrokSlashCommands.setRuntimeCommands([]);
     const prompt = document.querySelector("#prompt");
-    prompt.value = "/work";
-    prompt.setSelectionRange(5, 5);
+    prompt.value = "/work-a";
+    prompt.setSelectionRange(7, 7);
     prompt.dispatchEvent(new Event("input", { bubbles: true }));
   });
   if (!(await page.locator("#slashMenu").evaluate((menu) => menu.classList.contains("hidden")))) {

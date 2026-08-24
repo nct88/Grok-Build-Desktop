@@ -8,6 +8,10 @@ contextBridge.exposeInMainWorld("grokBuild", {
   getSessionInfo: () => ipcRenderer.invoke("app:getSessionInfo"),
   slashCommands: (workspaceRoot) =>
     ipcRenderer.invoke("app:getSlashCommands", workspaceRoot ?? null),
+  getFolderTrust: (folder) => ipcRenderer.invoke("app:getFolderTrust", folder ?? null),
+  setFolderTrust: (folder, trusted) =>
+    ipcRenderer.invoke("app:setFolderTrust", folder ?? null, Boolean(trusted)),
+  quitApp: () => ipcRenderer.invoke("app:quit"),
   login: () => ipcRenderer.invoke("app:login"),
   logout: () => ipcRenderer.invoke("app:logout"),
   saveSettings: (settings) => ipcRenderer.invoke("app:saveSettings", settings),

@@ -330,11 +330,14 @@ try {
   const { AgentSupervisor } = require(path.join(root, "apps/desktop/src/agentSupervisor.cjs"));
   const events = [];
   let startCount = 0;
+  let stopCount = 0;
+  const clients = [];
   class FakeClient {
     constructor() {
       this.connectionState = "starting";
       this.sessionId = "sess-1";
       this._handlers = [];
+      clients.push(this);
     }
     onEvent(fn) {
       this._handlers.push(fn);
@@ -345,6 +348,7 @@ try {
       this.connectionState = "connected";
     }
     async stop() {
+      stopCount++;
       this.connectionState = "disconnected";
     }
     async loadSession() {}
@@ -375,10 +379,20 @@ try {
   if (startCount !== 1) throw new Error("should not restart");
   const st = sup.status();
   if (!st.connected || st.slots.length < 1) throw new Error("status slots");
-  // spawn second slot
+  // A second tab gets a separate process; starting it must not stop the
+  // primary task that is already running.
+  clients[0].connectionState = "running";
   const r3 = await sup.spawnSlot(tmp, { permissionMode: "auto" }, "Parallel");
   if (!r3.ok || r3.slotId === "primary") throw new Error("spawn slot id");
   if (sup.listSlots().length !== 2) throw new Error("2 slots");
+  if (clients[0].connectionState !== "running" || stopCount !== 0) {
+    throw new Error("spawning parallel slot interrupted primary task");
+  }
+  sup.setActive("primary");
+  if (sup.status().activeSlotId !== "primary" || clients[0].connectionState !== "running") {
+    throw new Error("switching back did not preserve primary runtime");
+  }
+  sup.setActive(r3.slotId);
   // max 2
   let threw = false;
   try {
@@ -525,10 +539,15 @@ try {
   // eslint-disable-next-line no-new-func
   new Function(src)();
   const tabRoot = new FakeEl();
+  let renameTarget = null;
   const tabs = globalThis.GrokSessionTabs.create({
     root: tabRoot,
     onActivate: () => {},
+    onRename: (tab) => {
+      renameTarget = tab;
+    },
   });
+  const firstTab = tabs.getActive();
   // After ensureOne → single tab: should be empty mode (no session-tab chip)
   if (!tabRoot.classList.contains("session-tabs-empty")) {
     throw new Error("expected session-tabs-empty for single tab");
@@ -544,6 +563,8 @@ try {
   );
   if (hasTabChip) throw new Error("single tab should not render Chat chip");
   tabs.addTab({ title: "Second", sessionId: "session-b", cwd: "D:\\projects\\beta" }, true);
+  firstTab.promptQueue.push({ text: "queued for first" });
+  if (tabs.getActive().promptQueue.length !== 0) throw new Error("prompt queues leaked between tabs");
   if (tabRoot.classList.contains("session-tabs-empty")) {
     throw new Error("expected multi-tab rail visible");
   }
@@ -554,9 +575,45 @@ try {
   if (tabs.getActive()?.cwd !== "E:\\projects\\moved") {
     throw new Error(`moved session cwd was not synchronized: ${tabs.getActive()?.cwd}`);
   }
-  ok("sessionTabs single vs multi");
+  tabs.updateTab(tabs.getActive().id, { slotId: "slot-b", turnStartedAt: Date.now() - 3000 });
+  if (tabs.findBySlot("slot-b") !== tabs.getActive()) throw new Error("slot ownership lookup");
+  tabs.queueEvent(tabs.getActive().id, { type: "assistant_delta", slotId: "slot-b", text: "one" });
+  tabs.queueEvent(tabs.getActive().id, { type: "assistant_delta", slotId: "slot-b", text: " two" });
+  const pending = tabs.takePendingEvents(tabs.getActive().id);
+  if (pending.length !== 1 || pending[0].text !== "one two") throw new Error("inactive stream coalescing");
+  tabs.setBusy(tabs.activeId, true);
+  const latestRail = tabRoot.children[tabRoot.children.length - 1];
+  const activeButton = latestRail?.children?.find?.((el) => String(el.className).includes("active"));
+  const activeLabel = activeButton?.children?.find?.((el) => el.className === "session-tab-label");
+  activeLabel?.ondblclick?.({ stopPropagation() {} });
+  if (renameTarget !== tabs.getActive()) throw new Error("direct tab rename interaction");
+  tabs.setBusy(tabs.activeId, false);
+  ok("sessionTabs cache + slot runtime + rename");
 } catch (e) {
   fail("sessionTabs UI", e);
+}
+
+// Switching tabs is cache-only. Agent resume/spawn happens exclusively at send time.
+try {
+  const appSrc = fs.readFileSync(path.join(root, "apps/desktop/renderer/app.js"), "utf8");
+  const activateStart = appSrc.indexOf("onActivate: (tab, prev) =>");
+  const activateEnd = appSrc.indexOf("onNew: () =>", activateStart);
+  const activation = appSrc.slice(activateStart, activateEnd);
+  if (activateStart < 0 || activateEnd < 0) throw new Error("tab activation block missing");
+  if (/loadSession\s*\(/.test(activation)) throw new Error("tab activation resumes backend session");
+  if (!/takePendingEvents/.test(activation)) throw new Error("inactive event replay missing");
+  const binderStart = appSrc.indexOf("async function ensureActiveTabAgent");
+  const sendStart = appSrc.indexOf("async function send()", binderStart);
+  const binder = appSrc.slice(binderStart, sendStart);
+  if (!/spawnAgentSlot/.test(binder) || !/slotIsRunning/.test(binder)) {
+    throw new Error("concurrent tab slot guard missing");
+  }
+  if (!/await ensureActiveTabAgent\(\)/.test(appSrc.slice(sendStart))) {
+    throw new Error("send-time agent binding missing");
+  }
+  ok("tab activation cache-only + send-time slot binding");
+} catch (e) {
+  fail("tab runtime regression", e);
 }
 
 // Agent slots UI: hide when only primary
@@ -679,9 +736,42 @@ try {
   if (!media.some((m) => /videos[\\/]1\.mp4/i.test(m.src))) {
     throw new Error("relative videos/ path");
   }
+  const trust = SC.resolveSlash("/hooks-trust");
+  if (trust.kind !== "ui" || trust.action !== "hooks-trust") {
+    throw new Error(`hooks-trust ui: ${JSON.stringify(trust)}`);
+  }
   ok("slashCommands imagine + media extract");
 } catch (e) {
   fail("slashCommands", e);
+}
+
+try {
+  const {
+    parseTrustedFolders,
+    serializeTrustedFolders,
+    getFolderTrust,
+    setFolderTrust,
+  } = require(path.join(root, "apps/desktop/src/folderTrust.cjs"));
+  const grokHome = fs.mkdtempSync(path.join(os.tmpdir(), "grok-trust-"));
+  const folder = path.join(grokHome, "project");
+  fs.mkdirSync(folder);
+  const parsed = parseTrustedFolders(
+    "[folders.'E:\\\\projects\\\\Grok-Build']\ntrusted = true\ndecided_at = 10\n",
+  );
+  if (!parsed.length || parsed[0].trusted !== true) throw new Error("parse trusted folder");
+  const text = serializeTrustedFolders([{ path: folder, trusted: true, decidedAt: 11 }]);
+  if (!text.includes("trusted = true")) throw new Error("serialize");
+  const before = getFolderTrust(grokHome, folder);
+  if (before.trusted) throw new Error("default should be untrusted");
+  const after = setFolderTrust(grokHome, folder, true);
+  if (!after.trusted) throw new Error("set trust failed");
+  const again = getFolderTrust(grokHome, folder);
+  if (!again.trusted) throw new Error("trust did not persist");
+  setFolderTrust(grokHome, folder, false);
+  if (getFolderTrust(grokHome, folder).trusted) throw new Error("untrust failed");
+  ok("folderTrust store");
+} catch (e) {
+  fail("folderTrust", e);
 }
 
 // Finalized assistant content recognizes navigable local paths without

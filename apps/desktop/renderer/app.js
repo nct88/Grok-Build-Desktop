@@ -31,12 +31,17 @@
   const fileTree = $("fileTree");
   const editorBody = $("editorBody");
   const editorPath = $("editorPath");
+  const editorRelativePath = $("editorRelativePath");
+  const editorLanguage = $("editorLanguage");
+  const filePreviewEmpty = $("filePreviewEmpty");
   const diffBody = $("diffBody");
   const cliOut = $("cliOut");
   const filesRoot = $("filesRoot");
   const usageChip = $("usageChip");
   const usageText = $("usageText");
   const composerEl = document.querySelector(".composer");
+  let fileTreeRequest = 0;
+  let selectedFilePath = "";
 
   let workspaceRoot = null;
   /** Extra source folders attached to the current project (multi-root chat). */
@@ -715,18 +720,40 @@
     if (!eventStore.length) showEmpty();
   }
 
+  function captureTabRuntime(tab) {
+    if (!tab) return;
+    tab.busy = Boolean(busy);
+    tab.turnPhase = turnPhase || "idle";
+    tab.turnStartedAt = Number(turnStartedAt) || 0;
+    tab.phaseStartedAt = Number(phaseStartedAt) || 0;
+    tab.lastUsageFooter = lastUsageFooter || "";
+  }
+
+  function restoreTabRuntime(tab) {
+    busy = Boolean(tab?.busy);
+    turnPhase = tab?.turnPhase || "idle";
+    turnStartedAt = Number(tab?.turnStartedAt) || 0;
+    phaseStartedAt = Number(tab?.phaseStartedAt) || 0;
+    lastUsageFooter = tab?.lastUsageFooter || "";
+    if (busy && turnStartedAt) startActivityTimer();
+    else stopActivityTimer();
+    paintTurnStatus();
+  }
+
   const sessionTabs = globalThis.GrokSessionTabs?.create?.({
     root: $("sessionTabs"),
     onActivate: (tab, prev) => {
+      tab.activating = true;
       const skipPrevSnapshot = Boolean(tab.skipPrevSnapshot);
       tab.skipPrevSnapshot = false;
       if (prev && !skipPrevSnapshot) {
         prev.items = sessionTabs.snapshotItems(eventStore.items);
+        captureTabRuntime(prev);
       }
       activeSessionId = tab.sessionId;
-      convTitle.textContent = tab.title || "Conversation";
-      // A tab owns its project. Align composer + sidebar before resuming so an
-      // old UI selection can never load or paint the session under a different cwd.
+      syncConvTitle();
+      // A tab owns its project. Align composer + sidebar before painting its
+      // cache so an old UI selection cannot show it under a different cwd.
       void (async () => {
         const tabCwd = tab.cwd || "";
         const noProject = isRecentsPath(tabCwd);
@@ -738,46 +765,77 @@
           await selectProject(tabCwd, { reconnect: false, freshChat: false });
         }
         // A fast second tab click supersedes this activation.
-        if (sessionTabs.getActive() !== tab) return;
-        restoreStoreItems(tab.items || []);
-        scrollEnd(true);
-        if (!tab.sessionId || tab.sessionId === prev?.sessionId) return;
-        if (tab.deferLoad) return;
-        const loadCwd = noProject ? getRecentsWorkspace() || "" : tabCwd;
-        try {
-          await api.loadSession?.(tab.sessionId, loadCwd, connectOpts());
-          agentConnected = true;
-          if (!(tab.items && tab.items.length)) await paintTranscript(tab.sessionId);
-        } catch {
-          /* Keep the cached snapshot visible when an offline resume fails. */
+        if (sessionTabs.getActive() !== tab) {
+          tab.activating = false;
+          return;
         }
-      })();
+        restoreStoreItems(tab.items || []);
+        restoreTabRuntime(tab);
+        updateQueueBar();
+        scrollEnd(true);
+        // Tab activation must never resume/replace an ACP session. It only
+        // selects an already-bound slot and replays events cached while hidden.
+        if (tab.slotId && api.setActiveAgentSlot) {
+          try {
+            await api.setActiveAgentSlot(tab.slotId);
+            const state = await api.agentSlots?.();
+            const slot = state?.slots?.find?.((s) => s.id === tab.slotId);
+            if (sessionTabs.getActive() !== tab) {
+              tab.activating = false;
+              return;
+            }
+            agentConnected = Boolean(slot?.warm);
+            agentWorkspace = slot?.workspace || null;
+          } catch {
+            tab.slotId = null;
+            agentConnected = false;
+            agentWorkspace = null;
+          }
+        } else {
+          agentConnected = false;
+          agentWorkspace = null;
+          if (!tab.busy) {
+            setStatus(
+              "disconnected",
+              tab.sessionId
+                ? tt("cachedChatReady", "Cached · send to resume")
+                : tt("newConversation", "New conversation"),
+            );
+          }
+        }
+        tab.activating = false;
+        const pending = sessionTabs.takePendingEvents?.(tab.id) || [];
+        for (const event of pending) handleAgentEvent(event);
+        captureTabRuntime(tab);
+        sessionTabs.render?.();
+      })().catch(() => {
+        tab.activating = false;
+      });
     },
     onNew: () => {
       void newChatTab(true);
     },
+    onClose: (tab) => {
+      if (tab?.slotId) {
+        void Promise.resolve(api.stopAgentSlot?.(tab.slotId)).finally(() => void refreshAgentSlots());
+      }
+    },
+    onRename: (tab) => {
+      void renameActiveChat("", tab);
+    },
   });
 
   function conversationHeading() {
-    const tab = sessionTabs?.getActive?.();
-    const raw = String(tab?.title || convTitle?.textContent || "").trim();
-    const generic = new Set([
-      "",
-      "Chat",
-      "New chat",
-      "New conversation",
-      "Conversation",
-      tt("newConversation", "New conversation"),
-      tt("conversation", "Conversation"),
-    ]);
-    if (raw && !generic.has(raw)) return raw;
     if (workspaceRoot) return basen(workspaceRoot);
-    return tt("conversation", "Conversation");
+    return tt("newConversation", "New chat");
   }
 
   function syncConvTitle(explicit) {
     if (!convTitle) return;
-    convTitle.textContent = explicit || conversationHeading();
+    void explicit;
+    const projectName = workspaceRoot ? basen(workspaceRoot) : tt("noProject", "No project");
+    convTitle.textContent = projectName;
+    convTitle.title = workspaceRoot || projectName;
   }
 
   /** Latest recap / last-turn summary for the open chat (Grok CLI 1.0.5). */
@@ -834,7 +892,7 @@
     if (
       session.title &&
       !session.titleIsManual &&
-      session.title !== convTitle?.textContent &&
+      session.title !== sessionTabs?.getActive?.()?.title &&
       !looksLikeSessionIdTitle(session)
     ) {
       sessionTabs?.updateActive?.({ title: session.title });
@@ -844,35 +902,41 @@
   }
 
   async function newChatTab(viaAgent) {
+    const current = sessionTabs.getActive?.();
     sessionTabs.saveSnapshot(eventStore.items);
-    restoreStoreItems([]);
-    showEmpty();
+    captureTabRuntime(current);
     const title = conversationHeading();
-    sessionTabs.resetToOne?.({
-      title,
-      sessionId: null,
-      cwd: effectiveWorkspace() || null,
-      items: [],
-      skipPrevSnapshot: true,
-    });
+    const pristine = current && !current.sessionId && !(current.items || []).length && !current.busy;
+    const next = pristine
+      ? sessionTabs.updateActive?.({
+          title,
+          sessionId: null,
+          slotId: current.slotId || null,
+          cwd: effectiveWorkspace() || null,
+          items: [],
+          skipPrevSnapshot: true,
+        }) || current
+      : sessionTabs.addTab?.(
+          {
+            title,
+            sessionId: null,
+            cwd: effectiveWorkspace() || null,
+            items: [],
+            skipPrevSnapshot: true,
+          },
+          true,
+        );
+    if (pristine) {
+      restoreStoreItems([]);
+      restoreTabRuntime(next);
+      showEmpty();
+    }
     activeSessionMeta = { lastRecap: "", lastTurnSummary: "", titleIsManual: false };
     paintSessionFlowStrip();
     syncConvTitle(title);
-    if (viaAgent) {
-      try {
-        const res = await api.newSession();
-        activeSessionId = res?.sessionId || null;
-        sessionTabs.updateActive({
-          sessionId: activeSessionId,
-          title,
-          cwd: effectiveWorkspace() || null,
-        });
-      } catch (e) {
-        addMsg("error", e.message || String(e));
-      }
-    } else {
-      activeSessionId = null;
-    }
+    // Creating a tab is local and instant. A fresh ACP session is allocated on
+    // first send so an already-running tab cannot be interrupted by this click.
+    activeSessionId = null;
     editCount = 0;
     reviews = [];
     renderReviewList();
@@ -1145,6 +1209,130 @@
     localStorage.setItem(LAYOUT_KEY, JSON.stringify({ ...loadLayout(), ...p }));
   }
 
+  let composerMultiline = false;
+
+  function applyComposerChrome() {
+    const layout = loadLayout();
+    composerMultiline = Boolean(layout.composerMultiline);
+    document.documentElement.dataset.timestamps = layout.showTimestamps ? "on" : "off";
+    document.documentElement.dataset.compact = layout.compactMode ? "on" : "off";
+  }
+  applyComposerChrome();
+
+  function toggleLayoutFlag(key, onMsg, offMsg) {
+    const next = !loadLayout()[key];
+    saveLayout({ [key]: next });
+    applyComposerChrome();
+    addStep(tt(next ? onMsg.key : offMsg.key, next ? onMsg.fallback : offMsg.fallback));
+    return next;
+  }
+
+  function projectHooksDir() {
+    if (!workspaceRoot) return "";
+    const sep = String(workspaceRoot).includes("\\") ? "\\" : "/";
+    return `${String(workspaceRoot).replace(/[\\/]+$/, "")}${sep}.grok${sep}hooks`;
+  }
+
+  async function refreshFolderTrustUi() {
+    const status = $("folderTrustStatus");
+    if (!status) return;
+    if (!workspaceRoot || isRecentsPath(workspaceRoot)) {
+      status.textContent = tt("folderTrustNeedProject", "Open a project folder first.");
+      return;
+    }
+    try {
+      const res = await api.getFolderTrust?.(workspaceRoot);
+      if (res?.trusted) {
+        status.textContent = tt(
+          "folderTrustOn",
+          "This project is trusted. Repo-local MCP, LSP and hooks can run.",
+        );
+      } else {
+        status.textContent = tt(
+          "folderTrustOff",
+          "This project is not trusted. Repo-local MCP will not start.",
+        );
+      }
+    } catch {
+      status.textContent = tt(
+        "folderTrustHint",
+        "Repo-local MCP, LSP and hooks run only after this folder is trusted.",
+      );
+    }
+  }
+
+  async function setProjectFolderTrust(trusted) {
+    if (!workspaceRoot || isRecentsPath(workspaceRoot)) {
+      addMsg("error", tt("folderTrustNeedProject", "Open a project folder first."));
+      return;
+    }
+    try {
+      const res = await api.setFolderTrust?.(workspaceRoot, trusted);
+      if (!res?.ok) {
+        addMsg("error", res?.error || tt("folderTrustNeedProject", "Open a project folder first."));
+        return;
+      }
+      addStep(
+        trusted
+          ? tt("folderTrusted", "Project folder trusted for MCP, LSP and hooks")
+          : tt("folderUntrusted", "Project folder trust revoked"),
+      );
+      void refreshFolderTrustUi();
+      if (agentConnected) {
+        await connect(effectiveWorkspace(), { forceRestart: true });
+      }
+    } catch (e) {
+      addMsg("error", e.message || String(e));
+    }
+  }
+
+  async function forkParallelAgent() {
+    if (!workspaceRoot) {
+      addMsg("error", tt("chooseProject", "Choose a project first."));
+      return;
+    }
+    try {
+      sessionTabs?.saveSnapshot?.(eventStore.items);
+      captureTabRuntime(sessionTabs?.getActive?.());
+      const tab = sessionTabs?.addTab?.(
+        {
+          title: tt("forkedAgentTab", "Forked agent"),
+          cwd: workspaceRoot,
+          items: [],
+        },
+        true,
+      );
+      const spawned = await api.spawnAgentSlot?.(workspaceRoot, connectOpts(), tab?.title || "Forked agent");
+      if (tab) {
+        tab.slotId = spawned?.slotId || tab.slotId || null;
+        tab.sessionId = spawned?.sessionId || tab.sessionId || null;
+        activeSessionId = tab.sessionId;
+        sessionTabs?.render?.();
+      }
+      await refreshAgentSlots();
+    } catch (e) {
+      addMsg("error", e.message || String(e));
+    }
+  }
+
+  async function openProjectHooksDir() {
+    const dir = projectHooksDir();
+    if (!dir) {
+      addMsg("error", tt("folderTrustNeedProject", "Open a project folder first."));
+      return;
+    }
+    try {
+      const opened = await api.openPath?.(dir);
+      if (opened && opened.ok === false) {
+        addStep(tt("hooksDirMissing", "No .grok/hooks folder yet. Create it in this project to add hooks."));
+        return;
+      }
+      addStep(tt("hooksDirHint", "Project hooks live in .grok/hooks. Add or remove JSON hook files there."));
+    } catch {
+      addStep(tt("hooksDirMissing", "No .grok/hooks folder yet. Create it in this project to add hooks."));
+    }
+  }
+
   function basen(p) {
     if (globalThis.GrokDom?.basen) {
       // Prefer path-aware helper; normalize slashes for Windows
@@ -1307,21 +1495,21 @@
     workspaceRoot = root || null;
     if (!root) extraRoots = [];
     workspaceLabel.textContent = root || tt("noProject", "No project");
+    workspaceLabel.title = root || "";
+    syncConvTitle();
     if ($("inpWorkspace")) $("inpWorkspace").value = root || "";
-    if (filesRoot) filesRoot.textContent = root || "—";
-    if (root) void refreshFileTree(root);
-    else if (filesRoot) {
-      // No project — clear file tree
-      try {
-        $("fileTree") && ($("fileTree").innerHTML = "");
-      } catch {
-        /* ignore */
-      }
+    if (filesRoot) {
+      filesRoot.textContent = root ? basen(root) : "—";
+      filesRoot.title = root || "";
     }
+    resetFilePreview();
+    if (root) void refreshFileTree(root);
+    else void refreshFileTree(null);
     renderProjects();
     renderProjectMenu();
     updateProjectChip();
     void refreshSlashCommands();
+    void refreshFolderTrustUi();
     void refreshGitStrip();
     // Terminal follows project folder (not recents sandbox)
     updateTermCwdLabel(root || "");
@@ -1968,9 +2156,10 @@
         },
         onSelect: async (id) => {
           try {
-            await api.setActiveAgentSlot(id);
+            const owner = sessionTabs?.findBySlot?.(id);
+            if (owner) sessionTabs.activate?.(owner.id);
+            else await api.setActiveAgentSlot(id);
             await refreshAgentSlots();
-            addStep(`Active agent · ${id}`);
           } catch (e) {
             addMsg("error", e.message || String(e));
           }
@@ -1981,9 +2170,24 @@
             return;
           }
           try {
-            await api.spawnAgentSlot(workspaceRoot, connectOpts(), "Parallel agent");
+            sessionTabs?.saveSnapshot?.(eventStore.items);
+            captureTabRuntime(sessionTabs?.getActive?.());
+            const tab = sessionTabs?.addTab?.(
+              {
+                title: tt("parallelAgent", "Parallel agent"),
+                cwd: workspaceRoot,
+                items: [],
+              },
+              true,
+            );
+            const spawned = await api.spawnAgentSlot(workspaceRoot, connectOpts(), tab?.title || "Parallel agent");
+            if (tab) {
+              tab.slotId = spawned?.slotId || null;
+              tab.sessionId = spawned?.sessionId || null;
+              activeSessionId = tab.sessionId;
+              sessionTabs?.render?.();
+            }
             await refreshAgentSlots();
-            addStep("Parallel agent started");
           } catch (e) {
             addMsg("error", e.message || String(e));
           }
@@ -1991,6 +2195,13 @@
         onStop: async (id) => {
           try {
             await api.stopAgentSlot(id);
+            const owner = sessionTabs?.findBySlot?.(id);
+            if (owner) {
+              owner.slotId = null;
+              owner.busy = false;
+              owner.turnPhase = "done";
+              sessionTabs?.render?.();
+            }
             await refreshAgentSlots();
             addStep(`Stopped slot · ${id}`);
           } catch (e) {
@@ -2182,21 +2393,107 @@
     onPromptInputForSlash();
   }
 
+  function relativeWorkspacePath(filePath) {
+    const file = String(filePath || "");
+    const root = String(workspaceRoot || "").replace(/[\\/]+$/, "");
+    if (!root || !file) return file;
+    const fileKey = file.toLowerCase();
+    const rootKey = root.toLowerCase();
+    if (fileKey === rootKey) return basen(root);
+    if (fileKey.startsWith(`${rootKey}\\`) || fileKey.startsWith(`${rootKey}/`)) {
+      return file.slice(root.length + 1);
+    }
+    return file;
+  }
+
+  function setLanguageBadge(filePath) {
+    const language = globalThis.GrokSyntax?.languageForPath?.(filePath) || {
+      id: "plain",
+      label: tt("plainText", "Plain text"),
+    };
+    if (editorLanguage) {
+      editorLanguage.textContent = language.label;
+      editorLanguage.dataset.language = language.id;
+      editorLanguage.title = tt("detectedLanguage", "Detected language: {language}").replace(
+        "{language}",
+        language.label,
+      );
+      editorLanguage.classList.remove("hidden");
+    }
+    return language;
+  }
+
+  function resetFilePreview(message) {
+    selectedFilePath = "";
+    if (editorPath) {
+      editorPath.textContent = tt("selectFile", "Select a file");
+      editorPath.title = "";
+      editorPath.dataset.filePath = "";
+      delete editorPath.dataset.line;
+    }
+    if (editorRelativePath) editorRelativePath.textContent = "";
+    if (editorLanguage) editorLanguage.classList.add("hidden");
+    if (filePreviewEmpty) {
+      filePreviewEmpty.classList.remove("hidden");
+      const hint = filePreviewEmpty.querySelector("span:last-child");
+      if (hint && message) hint.textContent = message;
+      else if (hint) hint.textContent = tt("selectFileHint", "Choose a file in the project tree to preview it.");
+    }
+    editorBody?.classList.add("hidden");
+    editorBody?.classList.remove("preview-error", "highlight-limited");
+    if (editorBody) editorBody.title = "";
+    editorBody?.querySelector("code")?.replaceChildren();
+    document.querySelectorAll(".explorer-row.selected").forEach((row) => row.classList.remove("selected"));
+  }
+
+  function selectExplorerRow(filePath) {
+    const wanted = String(filePath || "").toLowerCase();
+    document.querySelectorAll(".explorer-row.file").forEach((row) => {
+      row.classList.toggle("selected", String(row.dataset.path || "").toLowerCase() === wanted);
+    });
+  }
+
   async function openInEditor(filePath, line) {
     switchPanel("files");
+    selectedFilePath = String(filePath || "");
+    selectExplorerRow(selectedFilePath);
+    const relativePath = relativeWorkspacePath(filePath);
+    if (editorPath) {
+      editorPath.textContent = basen(filePath) || tt("selectFile", "Select a file");
+      editorPath.title = filePath || "";
+    }
+    if (editorRelativePath) {
+      editorRelativePath.textContent = relativePath;
+      editorRelativePath.title = filePath || "";
+    }
+    setLanguageBadge(filePath);
+    if (filePreviewEmpty) filePreviewEmpty.classList.add("hidden");
+    editorBody?.classList.remove("hidden");
+    editorBody?.classList.remove("preview-error", "highlight-limited");
+    const code = editorBody?.querySelector("code");
+    if (code) code.textContent = tt("loadingFile", "Loading file…");
     try {
       const res = await api.readText(filePath);
-      editorPath.textContent = res.path;
-      editorBody.querySelector("code").textContent = res.content;
-      // Phase C4 — optional deep-link to IDE at file:line
-      if (line && api.openIde) {
-        // keep preview; user can Open IDE from header with goto via double intent
-      }
+      // Ignore a slower read after the user selected another file.
+      if (String(filePath || "") !== selectedFilePath) return;
+      const result = globalThis.GrokSyntax?.render?.(code, res.content, res.path || filePath);
+      if (!result) code.textContent = res.content;
       editorPath.dataset.filePath = res.path || filePath || "";
       if (line) editorPath.dataset.line = String(line);
+      else delete editorPath.dataset.line;
+      editorBody.classList.toggle("highlight-limited", Boolean(result?.limited));
+      editorBody.title = result?.limited
+        ? tt("highlightLimited", "Syntax colors are disabled for very large files to keep the preview responsive.")
+        : "";
+      if (line) {
+        requestAnimationFrame(() => {
+          code?.querySelector(`.code-line:nth-child(${Math.max(1, Number(line) || 1)})`)?.scrollIntoView?.({ block: "center" });
+        });
+      }
     } catch (e) {
-      editorPath.textContent = filePath || "";
-      editorBody.querySelector("code").textContent = `// ${e.message || e}`;
+      if (String(filePath || "") !== selectedFilePath) return;
+      if (code) code.textContent = e?.message || String(e);
+      editorBody?.classList.add("preview-error");
     }
   }
 
@@ -2212,24 +2509,147 @@
     return res;
   }
 
+  function explorerIcon(name, className) {
+    const span = document.createElement("span");
+    span.className = className || "";
+    globalThis.GrokIcons?.mount?.(span, name, { size: 13, className: "icon" });
+    return span;
+  }
+
+  function explorerState(container, kind, message, retry) {
+    const state = document.createElement("div");
+    state.className = `explorer-state ${kind || ""}`.trim();
+    state.setAttribute("role", kind === "error" ? "alert" : "status");
+    const text = document.createElement("div");
+    text.textContent = message;
+    state.appendChild(text);
+    if (retry) {
+      const button = document.createElement("button");
+      button.type = "button";
+      button.className = "explorer-retry";
+      button.textContent = tt("retry", "Retry");
+      button.onclick = retry;
+      state.appendChild(button);
+    }
+    container.replaceChildren(state);
+  }
+
+  function createExplorerNode(entry, depth, epoch) {
+    const node = document.createElement("div");
+    node.className = "explorer-node";
+    const row = document.createElement("button");
+    row.type = "button";
+    row.className = `explorer-row ${entry.isDirectory ? "directory" : "file"}`;
+    row.style.setProperty("--depth", String(depth));
+    row.dataset.path = entry.path;
+    row.setAttribute("role", "treeitem");
+    row.title = entry.path;
+
+    if (entry.isDirectory) {
+      row.setAttribute("aria-expanded", "false");
+      row.appendChild(explorerIcon("chevronRight", "explorer-chevron"));
+      row.appendChild(explorerIcon("folder", "explorer-file-icon"));
+    } else {
+      const spacer = document.createElement("span");
+      spacer.className = "explorer-spacer";
+      row.appendChild(spacer);
+      row.appendChild(explorerIcon("file", "explorer-file-icon"));
+    }
+    const name = document.createElement("span");
+    name.className = "explorer-name";
+    name.textContent = entry.name;
+    row.appendChild(name);
+
+    const children = document.createElement("div");
+    children.className = "explorer-children hidden";
+    children.setAttribute("role", "group");
+    node.append(row, children);
+
+    if (entry.isDirectory) {
+      row.onclick = async () => {
+        const open = row.getAttribute("aria-expanded") === "true";
+        row.setAttribute("aria-expanded", open ? "false" : "true");
+        children.classList.toggle("hidden", open);
+        if (open || children.dataset.loaded === "true") return;
+        explorerState(children, "loading", tt("loadingFolder", "Loading folder…"));
+        try {
+          const entries = await api.listDir(entry.path);
+          if (epoch !== fileTreeRequest || !node.isConnected) return;
+          children.dataset.loaded = "true";
+          children.replaceChildren();
+          if (!entries.length) {
+            explorerState(children, "empty", tt("emptyFolder", "Empty folder"));
+            return;
+          }
+          for (const child of entries) children.appendChild(createExplorerNode(child, depth + 1, epoch));
+          selectExplorerRow(selectedFilePath);
+        } catch (error) {
+          if (epoch !== fileTreeRequest || !node.isConnected) return;
+          children.dataset.loaded = "";
+          explorerState(
+            children,
+            "error",
+            error?.message || tt("cannotListFolder", "Cannot list this folder."),
+            () => {
+              row.setAttribute("aria-expanded", "false");
+              row.click();
+            },
+          );
+          row.setAttribute("aria-expanded", "true");
+          children.classList.remove("hidden");
+        }
+      };
+    } else {
+      const language = globalThis.GrokSyntax?.languageForPath?.(entry.path);
+      const badge = document.createElement("span");
+      badge.className = "file-language";
+      badge.textContent = language?.label || tt("file", "File");
+      badge.title = language?.label || "";
+      row.appendChild(badge);
+      row.onclick = () => void openInEditor(entry.path);
+    }
+    return node;
+  }
+
+  function collapseExplorerFolders() {
+    fileTree?.querySelectorAll('.explorer-row.directory[aria-expanded="true"]').forEach((row) => {
+      row.setAttribute("aria-expanded", "false");
+      row.parentElement?.querySelector(":scope > .explorer-children")?.classList.add("hidden");
+    });
+    fileTree?.scrollTo?.({ top: 0, behavior: "smooth" });
+  }
+
   async function refreshFileTree(root) {
+    const epoch = ++fileTreeRequest;
+    const targetRoot = root || workspaceRoot;
+    if (!fileTree) return;
+    if (!targetRoot) {
+      explorerState(fileTree, "empty", tt("openProjectForFiles", "Open a project to browse its files."));
+      return;
+    }
+    if (filesRoot) {
+      filesRoot.textContent = basen(targetRoot);
+      filesRoot.title = targetRoot;
+    }
+    explorerState(fileTree, "loading", tt("loadingProjectFiles", "Loading project files…"));
     try {
-      const entries = await api.listDir(root);
-      fileTree.innerHTML = "";
-      for (const e of entries.slice(0, 80)) {
-        const b = document.createElement("button");
-        b.type = "button";
-        b.className = "file-row";
-        b.textContent = `${e.isDirectory ? "📁" : "📄"} ${e.name}`;
-        b.onclick = () => {
-          if (e.isDirectory) void refreshFileTree(e.path);
-          else void openInEditor(e.path);
-        };
-        fileTree.appendChild(b);
+      const entries = await api.listDir(targetRoot);
+      if (epoch !== fileTreeRequest || !samePath(targetRoot, workspaceRoot)) return;
+      fileTree.replaceChildren();
+      if (!entries.length) {
+        explorerState(fileTree, "empty", tt("emptyProject", "This project folder is empty."));
+        return;
       }
-      filesRoot.textContent = root;
-    } catch {
-      fileTree.innerHTML = '<p class="muted-pad">Cannot list directory</p>';
+      for (const entry of entries) fileTree.appendChild(createExplorerNode(entry, 0, epoch));
+      selectExplorerRow(selectedFilePath);
+    } catch (error) {
+      if (epoch !== fileTreeRequest) return;
+      explorerState(
+        fileTree,
+        "error",
+        error?.message || tt("cannotListProject", "Cannot list project files."),
+        () => void refreshFileTree(targetRoot),
+      );
     }
   }
 
@@ -2687,7 +3107,8 @@
     const on = show !== false;
     if (on && (!pane.style.width || pane.style.width === "0px")) {
       const L = loadLayout();
-      pane.style.width = `${L.editorWidth || 360}px`;
+      const responsiveDefault = window.innerWidth >= 1700 ? 720 : window.innerWidth >= 1450 ? 500 : 400;
+      pane.style.width = `${Math.max(320, Number(L.editorWidth) || responsiveDefault)}px`;
     }
     pane.classList.toggle("collapsed", !on);
     split?.classList.toggle("panel-collapsed", !on);
@@ -2962,19 +3383,23 @@
     const bar = $("queueBar");
     const text = $("queueText");
     if (!bar || !text) return;
-    if (!promptQueue.length) {
+    const queue = sessionTabs?.getActive?.()?.promptQueue || promptQueue;
+    if (!queue.length) {
       bar.classList.add("hidden");
       return;
     }
     bar.classList.remove("hidden");
-    text.textContent = `${promptQueue.length} message${promptQueue.length > 1 ? "s" : ""} queued`;
+    text.textContent = `${queue.length} message${queue.length > 1 ? "s" : ""} queued`;
   }
 
   async function drainQueue() {
-    if (drainingQueue || busy || !promptQueue.length) return;
-    drainingQueue = true;
-    while (promptQueue.length && !busy) {
-      const next = promptQueue.shift();
+    const owner = sessionTabs?.getActive?.();
+    const queue = owner?.promptQueue || promptQueue;
+    if ((owner?.drainingQueue ?? drainingQueue) || busy || !queue.length) return;
+    if (owner) owner.drainingQueue = true;
+    else drainingQueue = true;
+    while (queue.length && !busy && (!owner || sessionTabs?.getActive?.() === owner)) {
+      const next = queue.shift();
       updateQueueBar();
       if (!next) break;
       const shown = next.displayText || next.text || "(attachment)";
@@ -2992,16 +3417,29 @@
       beginTurnActivity();
       try {
         busy = true;
+        if (owner) {
+          owner.busy = true;
+          owner.turnStartedAt = turnStartedAt;
+          owner.turnPhase = turnPhase;
+          sessionTabs?.render?.();
+        }
         await api.prompt(next.text || "", next.attachments || []);
+        if (owner && sessionTabs?.getActive?.() !== owner) break;
       } catch (e) {
-        busy = false;
-        endTurnActivity({ error: true });
-        addMsg("error", e.message || String(e));
+        if (!owner || sessionTabs?.getActive?.() === owner) {
+          busy = false;
+          endTurnActivity({ error: true });
+          addMsg("error", e.message || String(e));
+        } else {
+          owner.busy = false;
+          owner.turnPhase = "error";
+        }
         break;
       }
     }
-    drainingQueue = false;
-    updateQueueBar();
+    if (owner) owner.drainingQueue = false;
+    else drainingQueue = false;
+    if (!owner || sessionTabs?.getActive?.() === owner) updateQueueBar();
   }
 
   /** CLI: default | acceptEdits | auto | dontAsk | bypassPermissions | plan */
@@ -4040,7 +4478,7 @@
       } else if (!samePath(cwd, workspaceRoot)) {
         await selectProject(cwd, { reconnect: false, freshChat: false });
       }
-      setStatus("starting", "Resuming…");
+      setStatus("starting", tt("loadingCachedChat", "Loading cached chat…"));
       editCount = 0;
       reviews = [];
       renderReviewList();
@@ -4057,23 +4495,21 @@
         true,
       );
       activeSessionId = s.id;
-      convTitle.textContent = s.title || "Resumed conversation";
+      syncConvTitle();
       await paintTranscript(s.id);
       applySessionRecap(s);
       sessionTabs?.saveSnapshot?.(eventStore.items);
-      const loadCwd = noProj ? getRecentsWorkspace() || "" : cwd;
-      await api.loadSession(s.id, loadCwd, connectOpts());
-      agentConnected = true;
-      await paintTranscript(s.id);
-      applySessionRecap(s);
       sessionTabs?.updateActive?.({
         sessionId: s.id,
         title: s.title || "Chat",
-        cwd: loadCwd || null,
+        cwd: (noProj ? getRecentsWorkspace() || "" : cwd) || null,
         deferLoad: false,
       });
-      convTitle.textContent = s.title || "Resumed conversation";
-      setStatus("connected");
+      syncConvTitle();
+      setStatus(
+        agentConnected ? "connected" : "disconnected",
+        tt("cachedChatReady", "Cached · send to resume"),
+      );
       void refreshHistory();
       prompt.focus();
     } catch (e) {
@@ -4367,6 +4803,7 @@
     renderReviewList();
     relocalizeTimeline();
     showEmpty();
+    void refreshFolderTrustUi();
     if (window.GrokIcons) window.GrokIcons.applyAll();
     applyTheme(
       bootstrap?.theme || loadLayout().theme || "system",
@@ -5290,10 +5727,12 @@
     renderAttachments();
   }
 
-  api.onEvent((event) => {
+  function handleAgentEvent(event) {
     if (!event?.type) return;
     switch (event.type) {
       case "state": {
+        const stateTab = sessionTabs?.getActive?.();
+        if (stateTab && event.slotId && !stateTab.slotId) stateTab.slotId = event.slotId;
         const nextBusy = event.state === "running" || event.state === "starting";
         // While a turn is live, prefer phase-aware running label over generic "Working…"
         if (
@@ -5460,6 +5899,7 @@
           busy = false;
           endTurnActivity({ error: true });
         }
+        sessionTabs?.setBusy?.(sessionTabs.activeId, false);
         break;
       case "turn_complete": {
         streamBatcher?.flushNow?.();
@@ -5467,6 +5907,7 @@
         closeOpenToolGroup();
         busy = false;
         endTurnActivity();
+        sessionTabs?.setBusy?.(sessionTabs.activeId, false);
         // Always jump to latest answer (below tools), not mid-tool stack
         requestAnimationFrame(() => {
           scrollEnd(true);
@@ -5485,27 +5926,25 @@
         if (!$("menuUsage")?.classList.contains("hidden")) void refreshSessionInfo();
         sessionTabs?.updateActive?.({
           sessionId: activeSessionId,
+          slotId: event.slotId || sessionTabs.getActive()?.slotId || null,
           title: event.resumed
-            ? convTitle.textContent || "Resumed"
+            ? sessionTabs.getActive()?.title || "Resumed"
             : sessionTabs.getActive()?.title || "Chat",
           cwd: workspaceRoot || effectiveWorkspace() || null,
         });
-        if (event.resumed) {
-          if (
-            !convTitle.textContent ||
-            convTitle.textContent === "New conversation" ||
-            convTitle.textContent === "Conversation" ||
-            convTitle.textContent === "New chat"
-          ) {
-            convTitle.textContent = tt("chatResumed", "Chat resumed");
+        {
+          const sessionTab = sessionTabs?.getActive?.();
+          if (sessionTab?.manualTitlePending && activeSessionId && api.renameSession) {
+            sessionTab.manualTitlePending = false;
+            void api.renameSession(activeSessionId, sessionTab.title).catch(() => {
+              sessionTab.manualTitlePending = true;
+            });
           }
-          if (activeSessionId) void paintTranscript(activeSessionId).then(() => unlockChatInput());
-        } else if (
-          !convTitle.textContent ||
-          convTitle.textContent === "New conversation"
-        ) {
-          convTitle.textContent = tt("conversation", "Conversation");
         }
+        if (event.resumed) {
+          if (activeSessionId) void paintTranscript(activeSessionId).then(() => unlockChatInput());
+        }
+        syncConvTitle();
         void refreshHistory();
         unlockChatInput();
         break;
@@ -5522,6 +5961,49 @@
       default:
         break;
     }
+  }
+
+  function cacheInactiveAgentEvent(tab, event) {
+    if (!tab || !event) return;
+    let needsRender = false;
+    if (event.type === "state") {
+      const running = event.state === "running" || event.state === "starting";
+      tab.busy = running;
+      if (running && !tab.turnStartedAt) tab.turnStartedAt = Date.now();
+      if (!running && (event.state === "connected" || event.state === "disconnected" || event.state === "error")) {
+        tab.turnPhase = event.state === "error" ? "error" : "done";
+      }
+      needsRender = true;
+    } else if (event.type === "turn_complete" || event.type === "error") {
+      tab.busy = false;
+      tab.turnPhase = event.type === "error" ? "error" : "done";
+      needsRender = true;
+    } else if (event.type === "session" && event.sessionId) {
+      tab.sessionId = event.sessionId;
+      needsRender = true;
+    } else if (event.type === "thought_delta") {
+      tab.turnPhase = "thinking";
+    } else if (event.type === "assistant_delta") {
+      tab.turnPhase = "responding";
+    } else if (event.type === "tool" || event.type === "tool_update") {
+      tab.turnPhase = "tools";
+    } else if (event.type === "permission_request") {
+      tab.turnPhase = "permission";
+    }
+    sessionTabs?.queueEvent?.(tab.id, { ...event });
+    if (needsRender) sessionTabs?.render?.();
+  }
+
+  api.onEvent((event) => {
+    if (!event?.type) return;
+    const activeTab = sessionTabs?.getActive?.();
+    const owner = event.slotId ? sessionTabs?.findBySlot?.(event.slotId) : null;
+    if (owner && activeTab && (owner !== activeTab || activeTab.activating)) {
+      cacheInactiveAgentEvent(owner, event);
+      return;
+    }
+    handleAgentEvent(event);
+    captureTabRuntime(activeTab);
   });
 
   async function pickFolder() {
@@ -5593,11 +6075,7 @@
       } else {
         setStatus("connected", tt("connected", "Ready"));
       }
-      if (!convTitle.textContent || convTitle.textContent === "New conversation") {
-        convTitle.textContent = workspaceRoot
-          ? basen(workspaceRoot) || tt("conversation", "Conversation")
-          : tt("conversation", "Conversation");
-      }
+      syncConvTitle();
       void refreshHistory();
       void refreshAgentSlots();
       void refreshGitStrip();
@@ -5669,20 +6147,26 @@
     return true;
   }
 
-  async function renameActiveChat(arg) {
-    if (!activeSessionId || !api.renameSession) return false;
+  async function renameActiveChat(arg, targetTab) {
+    const tab = targetTab || sessionTabs?.getActive?.();
+    if (!tab) return false;
     const requested = String(arg || "").trim();
     const title =
       requested ||
-      window.prompt(tt("renamePrompt", "New chat title"), convTitle?.textContent || "");
+      window.prompt(tt("renamePrompt", "New chat title"), tab.title || "");
     if (!title) {
       addStep(tt("renameNeedTitle", "Type /rename <title> or /rename --auto"));
       return true;
     }
-    const res = await api.renameSession(activeSessionId, title);
+    const res = tab.sessionId && api.renameSession
+      ? await api.renameSession(tab.sessionId, title)
+      : { title };
     const next = res?.title || title;
-    sessionTabs?.updateActive?.({ title: next });
-    syncConvTitle(next);
+    sessionTabs?.updateTab?.(tab.id, {
+      title: next,
+      manualTitlePending: !tab.sessionId,
+    });
+    if (sessionTabs?.getActive?.() === tab) syncConvTitle(next);
     void refreshHistory();
     addStep(`/rename ${res?.auto ? "--auto" : next}`);
     return true;
@@ -5795,12 +6279,204 @@
       void runCli(["doctor"]);
       return true;
     }
+    if (action === "resume" || action === "history") {
+      $("btnHistory")?.click();
+      return true;
+    }
+    if (action === "dashboard" || action === "workflows") {
+      setPanelVisible(true);
+      switchPanel("manager");
+      return true;
+    }
+    if (action === "view-plan") {
+      setPanelVisible(true);
+      switchPanel("artifacts");
+      return true;
+    }
+    if (action === "fork") {
+      void forkParallelAgent();
+      return true;
+    }
+    if (action === "quit") {
+      if (confirm(tt("quitConfirm", "Quit Grok Build Desktop?"))) void api.quitApp?.();
+      return true;
+    }
+    if (action === "home") {
+      void selectProject(null, { reconnect: true, freshChat: false });
+      return true;
+    }
+    if (
+      action === "hooks" ||
+      action === "hooks-list" ||
+      action === "hooks-add" ||
+      action === "hooks-remove"
+    ) {
+      setPanelVisible(true);
+      switchPanel("tools");
+      switchToolsTab("mcp");
+      void refreshFolderTrustUi();
+      if (action === "hooks-list") void runCli(["inspect"]);
+      if (action === "hooks-add" || action === "hooks-remove") void openProjectHooksDir();
+      return true;
+    }
+    if (action === "hooks-trust") {
+      void setProjectFolderTrust(true);
+      return true;
+    }
+    if (action === "hooks-untrust") {
+      void setProjectFolderTrust(false);
+      return true;
+    }
+    if (action === "theme") {
+      const want = String(arg || "").trim().toLowerCase();
+      if (want === "light" || want === "dark" || want === "system") {
+        void api.setTheme(want).then((res) => {
+          applyTheme(want, res?.shouldUseDarkColors);
+          if (bootstrap) bootstrap.theme = want;
+        });
+      } else {
+        void toggleTheme();
+      }
+      return true;
+    }
+    if (action === "tutorial") {
+      void api.openExternal?.("https://docs.x.ai/build/overview");
+      addStep(tt("docsOpened", "Opened Grok Build docs"));
+      return true;
+    }
+    if (action === "import-claude") {
+      openSettings("general");
+      addStep(
+        tt(
+          "importClaudeHint",
+          "Claude import is a Grok TUI modal (Ctrl+I). Desktop cannot run that wizard — open Grok CLI to import ~/.claude settings.",
+        ),
+      );
+      return true;
+    }
+    if (action === "config-agents") {
+      openSettings("agent");
+      return true;
+    }
+    if (action === "timestamps") {
+      toggleLayoutFlag(
+        "showTimestamps",
+        { key: "timestampsOn", fallback: "Message timestamps on" },
+        { key: "timestampsOff", fallback: "Message timestamps off" },
+      );
+      return true;
+    }
+    if (action === "compact-mode") {
+      toggleLayoutFlag(
+        "compactMode",
+        { key: "compactOn", fallback: "Compact layout on" },
+        { key: "compactOff", fallback: "Compact layout off" },
+      );
+      return true;
+    }
+    if (action === "multiline") {
+      toggleLayoutFlag(
+        "composerMultiline",
+        { key: "multilineOn", fallback: "Multiline: Enter inserts a newline, Ctrl+Enter sends" },
+        { key: "multilineOff", fallback: "Enter sends the message" },
+      );
+      return true;
+    }
     return false;
+  }
+
+  function slotIsRunning(slot) {
+    return slot?.state === "running" || slot?.state === "starting";
+  }
+
+  async function ensureActiveTabAgent() {
+    const tab = sessionTabs?.getActive?.();
+    if (!tab) throw new Error("No active chat tab.");
+    const cwd = tab.cwd || effectiveWorkspace() || "";
+    const state = await api.agentSlots?.();
+    const slots = Array.isArray(state?.slots) ? state.slots : [];
+    let slot = tab.slotId ? slots.find((item) => item.id === tab.slotId) : null;
+
+    if (
+      slot &&
+      slot.warm &&
+      (!tab.sessionId || !slot.sessionId || slot.sessionId === tab.sessionId)
+    ) {
+      await api.setActiveAgentSlot?.(slot.id);
+      if (!tab.sessionId && slot.sessionId) {
+        tab.sessionId = slot.sessionId;
+        activeSessionId = slot.sessionId;
+      }
+      agentConnected = true;
+      agentWorkspace = slot.workspace || cwd || null;
+      return slot;
+    }
+
+    if (slot && slotIsRunning(slot)) {
+      throw new Error(tt("tabSessionMismatch", "This tab's agent is still busy with another session."));
+    }
+
+    // Reuse only a stopped slot. Running slots belong to their current tabs and
+    // must not be resumed/replaced as a side effect of sending elsewhere.
+    if (!slot) {
+      slot = slots.find((item) => !slotIsRunning(item));
+    }
+
+    if (!slot && slots.length < Number(state?.maxSlots || 2)) {
+      const launch = {
+        ...connectOpts(),
+        ...(tab.sessionId ? { resumeSessionId: tab.sessionId } : {}),
+      };
+      const spawned = await api.spawnAgentSlot?.(cwd, launch, tab.title || "Parallel chat");
+      if (!spawned?.slotId) {
+        throw new Error(tt("connectFailed", "Could not connect agent."));
+      }
+      tab.slotId = spawned?.slotId || null;
+      tab.sessionId = spawned?.sessionId || tab.sessionId || null;
+      activeSessionId = tab.sessionId;
+      if (tab.slotId) await api.setActiveAgentSlot?.(tab.slotId);
+      agentConnected = true;
+      agentWorkspace = cwd || null;
+      sessionTabs?.render?.();
+      return { id: tab.slotId, warm: true, workspace: cwd, sessionId: tab.sessionId };
+    }
+
+    if (!slot) {
+      throw new Error(
+        tt("allTabAgentsBusy", "Two chats are already running. Wait for one to finish before starting another."),
+      );
+    }
+
+    const previousOwner = sessionTabs?.findBySlot?.(slot.id);
+    if (previousOwner && previousOwner !== tab) previousOwner.slotId = null;
+    tab.slotId = slot.id;
+    await api.setActiveAgentSlot?.(slot.id);
+
+    let sessionId = tab.sessionId || null;
+    if (sessionId) {
+      await api.loadSession(sessionId, cwd, connectOpts());
+    } else if (slot.warm) {
+      const created = await api.newSession();
+      sessionId = created?.sessionId || null;
+    } else {
+      const connected = await connect(cwd);
+      if (!connected?.ok) throw connected?.error || new Error(tt("connectFailed", "Could not connect agent."));
+      const refreshed = await api.agentSlots?.();
+      sessionId = refreshed?.slots?.find?.((item) => item.id === slot.id)?.sessionId || null;
+    }
+
+    tab.sessionId = sessionId;
+    activeSessionId = sessionId;
+    agentConnected = true;
+    agentWorkspace = cwd || null;
+    sessionTabs?.render?.();
+    return { ...slot, warm: true, workspace: cwd, sessionId };
   }
 
   async function send() {
     let text = prompt.value.trim();
-    if ((!text && !attachments.length) || drainingQueue) return;
+    const sendTab = sessionTabs?.getActive?.();
+    if ((!text && !attachments.length) || (sendTab?.drainingQueue ?? drainingQueue)) return;
     hideSlashMenu();
     hideMentionMenu();
 
@@ -5856,21 +6532,19 @@
     renderAttachments();
 
     if (busy) {
-      promptQueue.push({ text, attachments: atts, displayText });
+      (sendTab?.promptQueue || promptQueue).push({ text, attachments: atts, displayText });
       updateQueueBar();
       addStep(`Queued: ${(displayText || text).slice(0, 48) || "(attachment)"}${(displayText || text).length > 48 ? "…" : ""}`);
       return;
     }
 
-    // Connect (or reconnect) so the agent cwd matches the composer project
-    const wantCwd = effectiveWorkspace();
-    const cwdMismatch =
-      Boolean(agentWorkspace) &&
-      !samePath(agentWorkspace, wantCwd) &&
-      !(isRecentsPath(agentWorkspace) && isRecentsPath(wantCwd));
-    if (!agentConnected || cwdMismatch) {
-      const c = await connect(wantCwd, cwdMismatch ? { forceRestart: true } : undefined);
-      if (!c?.ok) return;
+    // Bind only at send time. A pure tab click never resumes/replaces a
+    // session, while a second running tab receives a separate ACP slot.
+    try {
+      await ensureActiveTabAgent();
+    } catch (e) {
+      addMsg("error", e?.message || String(e));
+      return;
     }
 
     if (displayText || text) {
@@ -5890,13 +6564,19 @@
       const titleSrc = displayText || text;
       if (!t.title || t.title === "Chat" || t.title === "New chat" || t.title === "New conversation") {
         sessionTabs.updateActive({ title: titleSrc.slice(0, 28) + (titleSrc.length > 28 ? "…" : "") });
-        convTitle.textContent = sessionTabs.getActive().title;
       }
     }
     resetAssistant();
     turnStartedAt = Date.now();
     busy = true;
     beginTurnActivity();
+    sessionTabs?.updateActive?.({
+      busy: true,
+      turnPhase,
+      turnStartedAt,
+      phaseStartedAt,
+      lastUsageFooter,
+    });
     try {
       await api.prompt(text, atts);
     } catch (e) {
@@ -6012,6 +6692,7 @@
                 <li>Bấm <strong>Danh sách server</strong> xem server đã cài.</li>
                 <li>Chọn preset (GitHub, Fetch…) để điền form.</li>
                 <li>Bấm <strong>Thêm server local</strong> hoặc remote URL.</li>
+                <li><strong>Trust thư mục</strong> nếu server nằm trong <code>.grok/config.toml</code> của repo (lệnh <code>/hooks-trust</code>).</li>
                 <li><strong>Kết nối lại</strong> agent để MCP có hiệu lực.</li>
               </ul>
               <h4>Local (stdio)</h4>
@@ -6032,6 +6713,7 @@
                 <li>Click <strong>List servers</strong> to see what is installed.</li>
                 <li>Pick a preset (GitHub, Fetch…) to fill the form.</li>
                 <li>Click <strong>Add local</strong> or add a remote URL.</li>
+                <li><strong>Trust folder</strong> if the server is in the repo <code>.grok/config.toml</code> (<code>/hooks-trust</code>).</li>
                 <li><strong>Connect</strong> the agent again so MCP is loaded.</li>
               </ul>
               <h4>Local (stdio)</h4>
@@ -6311,6 +6993,7 @@
     document.querySelectorAll("#panelTools .tools-section").forEach((s) => {
       s.classList.toggle("active", s.dataset.toolsSection === id);
     });
+    if (id === "mcp") void refreshFolderTrustUi();
   }
 
   function paintMcpPresets() {
@@ -6520,7 +7203,7 @@
   function setupSplitters() {
     const specs = [
       { el: $("split1"), target: $("colSidebar"), key: "sidebarWidth", min: 180, reverse: false },
-      { el: $("split2"), target: $("colEditor"), key: "editorWidth", min: 220, reverse: true },
+      { el: $("split2"), target: $("colEditor"), key: "editorWidth", min: 320, reverse: true },
     ];
     for (const s of specs) {
       if (!s.el || !s.target) continue;
@@ -6569,7 +7252,7 @@
 
     const L = loadLayout();
     if (L.sidebarWidth) $("colSidebar").style.width = `${L.sidebarWidth}px`;
-    if (L.editorWidth) $("colEditor").style.width = `${L.editorWidth}px`;
+    if (L.editorWidth) $("colEditor").style.width = `${Math.max(320, L.editorWidth)}px`;
     setSidebarVisible(L.sidebarVisible !== false);
     setPanelVisible(L.panelVisible !== false);
     setTermVisible(Boolean(L.termVisible));
@@ -6657,6 +7340,8 @@
 
   // Phase C4 — header Open IDE with workspace; double-click path opens file in IDE
   editorPath?.addEventListener("dblclick", () => void openCurrentInIde());
+  $("btnRefreshFiles")?.addEventListener("click", () => void refreshFileTree(workspaceRoot));
+  $("btnCollapseFiles")?.addEventListener("click", collapseExplorerFolders);
   $("btnHistory").onclick = () => {
     setSideNav("history");
     setSidebarVisible(true);
@@ -6844,7 +7529,8 @@
     });
   $("btnQueueClear") &&
     ($("btnQueueClear").onclick = () => {
-      promptQueue.length = 0;
+      const queue = sessionTabs?.getActive?.()?.promptQueue || promptQueue;
+      queue.length = 0;
       updateQueueBar();
     });
   $("btnAttach").onclick = async () => {
@@ -6938,6 +7624,8 @@
   });
 
   wireToolsPanel();
+  $("btnHooksTrust") && ($("btnHooksTrust").onclick = () => void setProjectFolderTrust(true));
+  $("btnHooksUntrust") && ($("btnHooksUntrust").onclick = () => void setProjectFolderTrust(false));
   $("btnMcpAdd") &&
     ($("btnMcpAdd").onclick = async () => {
       const name = $("mcpName")?.value.trim();
@@ -7334,6 +8022,7 @@
       }
     }
     if (e.key === "Enter" && !e.shiftKey) {
+      if (composerMultiline && !e.ctrlKey && !e.metaKey) return;
       e.preventDefault();
       void send();
     }
@@ -7380,19 +8069,7 @@
         id: "parallel",
         label: "Spawn parallel agent",
         keywords: "slot multi process",
-        run: () =>
-          void (async () => {
-            if (!workspaceRoot) {
-              addMsg("error", tt("chooseProject", "Choose a project first."));
-              return;
-            }
-            try {
-              await api.spawnAgentSlot?.(workspaceRoot, connectOpts(), "Parallel agent");
-              await refreshAgentSlots();
-            } catch (e) {
-              addMsg("error", e.message || String(e));
-            }
-          })(),
+        run: () => void forkParallelAgent(),
       },
       {
         id: "marketplace",
@@ -7590,6 +8267,7 @@
     }
     showReasoning = bootstrap.showReasoning !== false;
     applyTheme(bootstrap.theme || loadLayout().theme || "system", bootstrap.shouldUseDarkColors);
+    applyComposerChrome();
     if (typeof GrokIcons !== "undefined") GrokIcons.applyAll();
     const L = loadLayout();
     if (L.permissionMode) {

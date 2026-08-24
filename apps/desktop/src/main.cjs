@@ -46,6 +46,7 @@ const {
 const { AgentSupervisor } = require("./agentSupervisor.cjs");
 const { loadMarketplaceCatalog } = require("./marketplaceCatalog.cjs");
 const { loadLocalSlashCommands } = require("./slashCatalog.cjs");
+const { getFolderTrust, setFolderTrust } = require("./folderTrust.cjs");
 const { execFile } = require("node:child_process");
 
 /** @type {import('electron').BrowserWindow | null} */
@@ -1885,6 +1886,38 @@ app.whenReady().then(() => {
     });
   });
 
+  function resolveTrustFolder(folder) {
+    const raw = typeof folder === "string" ? folder.trim() : "";
+    const candidate = raw || loadState().workspaceRoot || "";
+    if (!candidate || !fs.existsSync(candidate)) return "";
+    try {
+      if (!fs.statSync(candidate).isDirectory()) return "";
+    } catch {
+      return "";
+    }
+    const resolved = path.resolve(candidate);
+    const recents = getRecentsWorkspace();
+    if (recents && path.resolve(recents).toLowerCase() === resolved.toLowerCase()) return "";
+    return resolved;
+  }
+
+  ipcMain.handle("app:getFolderTrust", async (_e, folder) => {
+    const root = resolveTrustFolder(folder);
+    if (!root) return { ok: false, error: "Open a project folder first." };
+    return { ok: true, ...getFolderTrust(grokHomeDir(), root) };
+  });
+
+  ipcMain.handle("app:setFolderTrust", async (_e, folder, trusted) => {
+    const root = resolveTrustFolder(folder);
+    if (!root) return { ok: false, error: "Open a project folder first." };
+    return { ok: true, ...setFolderTrust(grokHomeDir(), root, Boolean(trusted)) };
+  });
+
+  ipcMain.handle("app:quit", async () => {
+    app.quit();
+    return { ok: true };
+  });
+
   ipcMain.handle("app:login", async () => {
     const result = await runGrokCliArgs(["login"], {
       timeoutMs: 5 * 60_000,
@@ -2623,9 +2656,24 @@ app.whenReady().then(() => {
     if (!base) throw new Error("Open a project first.");
     const resolved = guardedPath(base);
     const entries = fs.readdirSync(resolved, { withFileTypes: true });
+    const hiddenNoise = new Set([
+      ".git",
+      ".hg",
+      ".svn",
+      "node_modules",
+      "__pycache__",
+      ".venv",
+      ".next",
+      ".nuxt",
+      "coverage",
+    ]);
+    const sensitiveNames = /^(?:\.env(?:\..*)?|\.npmrc|\.pypirc|.*\.pem|.*\.key|id_rsa|id_ed25519)$/i;
     return entries
-      .filter((e) => !e.name.startsWith("."))
-      .slice(0, 200)
+      // Keep useful dot-folders such as .project-memory and .grok visible, but
+      // never surface repository internals, dependency caches, symlinks, or
+      // common credential files in the renderer explorer.
+      .filter((e) => !hiddenNoise.has(e.name) && !sensitiveNames.test(e.name) && !e.isSymbolicLink())
+      .slice(0, 400)
       .map((e) => ({
         name: e.name,
         path: path.join(resolved, e.name),

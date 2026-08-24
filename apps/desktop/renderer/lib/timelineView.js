@@ -21,6 +21,14 @@
     recap: 72,
   };
 
+  function formatClock(ts) {
+    try {
+      return new Date(ts).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+    } catch {
+      return "";
+    }
+  }
+
   /**
    * @param {HTMLElement} root
    * @param {{
@@ -739,6 +747,7 @@
         const d = document.createElement("div");
         d.className = "msg user tl-item";
         d.dataset.itemId = String(item.id);
+        if (item.ts) d.dataset.ts = formatClock(item.ts);
         d.textContent = item.text || "";
         const atts = item.meta?.attachments || [];
         if (atts.length) {
@@ -766,6 +775,7 @@
         const d = document.createElement("div");
         d.className = "msg assistant tl-item";
         d.dataset.itemId = String(item.id);
+        if (item.ts) d.dataset.ts = formatClock(item.ts);
         bindAssistantContent(d, item, !item.streaming);
         return d;
       }
