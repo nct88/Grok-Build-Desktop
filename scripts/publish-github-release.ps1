@@ -144,6 +144,29 @@ if ($unsigned.Count -gt 0 -and -not $AllowUnsigned) {
   throw "Unsigned release artifacts detected. Sign them, or use -AllowUnsigned only with explicit maintainer authorization: $($unsigned -join '; ')"
 }
 
+if (-not $env:GH_TOKEN -and -not $env:GITHUB_TOKEN) {
+  $gcmCandidates = @(
+    "C:\Program Files\Git\mingw64\bin\git-credential-manager.exe",
+    "git-credential-manager"
+  )
+  foreach ($gcm in $gcmCandidates) {
+    try {
+      $raw = "protocol=https`nhost=github.com`n`n" | & $gcm get 2>$null
+      foreach ($line in ($raw -split "`n")) {
+        if ($line -match "^password=(.+)$") {
+          $t = $Matches[1].Trim()
+          if ($t) {
+            $env:GH_TOKEN = $t
+            $env:GITHUB_TOKEN = $t
+            break
+          }
+        }
+      }
+      if ($env:GH_TOKEN) { break }
+    } catch {}
+  }
+}
+
 Invoke-Native "gh" @("auth", "status") | Out-Null
 $repo = Invoke-Native "gh" @("repo", "view", "--json", "nameWithOwner,visibility,url,defaultBranchRef") |
   Out-String | ConvertFrom-Json
