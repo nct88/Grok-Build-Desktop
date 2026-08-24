@@ -137,12 +137,12 @@ function Expand-ZipToInstall([string] $zip, [string] $to) {
 
 function New-DesktopShortcut([string] $targetExe, [string] $workDir) {
   $desktop = [Environment]::GetFolderPath("Desktop")
-  $lnkPath = Join-Path $desktop "Grok Build.lnk"
+  $lnkPath = Join-Path $desktop "Grok Build Desktop.lnk"
   $wsh = New-Object -ComObject WScript.Shell
   $sc = $wsh.CreateShortcut($lnkPath)
   $sc.TargetPath = $targetExe
   $sc.WorkingDirectory = $workDir
-  $sc.Description = "Grok Build (portable install)"
+  $sc.Description = "Grok Build Desktop (portable install)"
   $sc.IconLocation = "$targetExe,0"
   $sc.Save()
   Write-Host "Shortcut: $lnkPath"

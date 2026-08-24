@@ -1,6 +1,6 @@
 {
     "name":  "grok-build",
-    "version":  "0.5.44",
+    "version":  "0.5.45",
     "private":  true,
     "description":  "Grok Build Desktop — Electron agent app over official Grok CLI (ACP). Not Grok Build IDE.",
     "workspaces":  [

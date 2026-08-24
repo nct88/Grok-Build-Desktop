@@ -2,6 +2,12 @@
 
 Public, versioned changes for Grok Build Desktop.
 
+## 0.5.45 — 2026-08-24
+
+- Renamed the Windows desktop shortcut to "Grok Build Desktop" in installer and portable scripts for clearer identification.
+
+Release details are maintained in `docs/releases/0.5.45.md`.
+
 ## 0.5.44 — 2026-08-24
 
 - Fixed Windows PE icon and product metadata stamping in `stamp-win-icon.cjs` with multi-path `rcedit` resolution and strict verification.
