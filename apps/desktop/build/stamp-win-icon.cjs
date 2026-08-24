@@ -16,25 +16,34 @@ const path = require("path");
 const { execFileSync } = require("child_process");
 
 function findRcedit() {
-  const cacheRoot = path.join(
-    process.env.LOCALAPPDATA || "",
-    "electron-builder",
-    "Cache",
-    "winCodeSign"
-  );
-  if (fs.existsSync(cacheRoot)) {
-    const dirs = fs
-      .readdirSync(cacheRoot, { withFileTypes: true })
-      .filter((d) => d.isDirectory())
-      .map((d) => d.name)
-      .sort()
-      .reverse();
-    for (const d of dirs) {
-      for (const name of ["rcedit-x64.exe", "rcedit.exe", "rcedit-ia32.exe"]) {
-        const p = path.join(cacheRoot, d, name);
-        if (fs.existsSync(p)) return p;
-      }
+  const candidateRoots = [
+    path.join(process.env.LOCALAPPDATA || "", "electron-builder", "Cache", "winCodeSign"),
+    path.join(process.env.USERPROFILE || "", "AppData", "Local", "electron-builder", "Cache", "winCodeSign"),
+    "C:\\Users\\truongit\\AppData\\Local\\electron-builder\\Cache\\winCodeSign",
+    path.join(__dirname, "../../../node_modules/electron-winstaller/vendor"),
+    path.join(__dirname, "../node_modules/electron-winstaller/vendor"),
+  ];
+
+  for (const cacheRoot of candidateRoots) {
+    if (!fs.existsSync(cacheRoot)) continue;
+    for (const name of ["rcedit-x64.exe", "rcedit.exe", "rcedit-ia32.exe"]) {
+      const direct = path.join(cacheRoot, name);
+      if (fs.existsSync(direct)) return direct;
     }
+    try {
+      const dirs = fs
+        .readdirSync(cacheRoot, { withFileTypes: true })
+        .filter((d) => d.isDirectory())
+        .map((d) => d.name)
+        .sort()
+        .reverse();
+      for (const d of dirs) {
+        for (const name of ["rcedit-x64.exe", "rcedit.exe", "rcedit-ia32.exe"]) {
+          const p = path.join(cacheRoot, d, name);
+          if (fs.existsSync(p)) return p;
+        }
+      }
+    } catch {}
   }
   return null;
 }
@@ -44,8 +53,7 @@ exports.default = async function afterPack(context) {
 
   const rcedit = findRcedit();
   if (!rcedit) {
-    console.warn("[stamp-win-icon] rcedit not found in electron-builder cache");
-    return;
+    throw new Error("[stamp-win-icon] CRITICAL: rcedit not found. Cannot stamp custom icon onto Windows executable.");
   }
 
   const productName = context.packager.appInfo.productFilename || "Grok Build";

@@ -24,14 +24,29 @@ Write-Host "2) Stamp dev electron host..."
 $ico = Join-Path $root "apps\desktop\build\icon.ico"
 if (-not (Test-Path $ico)) { throw "Missing $ico" }
 
-$rcedit = Get-ChildItem "$env:LOCALAPPDATA\electron-builder\Cache\winCodeSign" -Recurse -Filter "rcedit-x64.exe" -ErrorAction SilentlyContinue |
-  Sort-Object FullName -Descending | Select-Object -First 1 -ExpandProperty FullName
-if (-not $rcedit) { throw "rcedit-x64.exe not found in electron-builder cache" }
+$rceditCandidates = @(
+  "$env:LOCALAPPDATA\electron-builder\Cache\winCodeSign",
+  "C:\Users\truongit\AppData\Local\electron-builder\Cache\winCodeSign",
+  "$env:USERPROFILE\AppData\Local\electron-builder\Cache\winCodeSign"
+)
+$rcedit = $null
+foreach ($c in $rceditCandidates) {
+  if (Test-Path $c) {
+    $rcedit = Get-ChildItem $c -Recurse -Filter "rcedit-x64.exe" -ErrorAction SilentlyContinue |
+      Sort-Object FullName -Descending | Select-Object -First 1 -ExpandProperty FullName
+    if ($rcedit) { break }
+  }
+}
+if (-not $rcedit) {
+  $rcedit = Join-Path $root "node_modules\electron-winstaller\vendor\rcedit.exe"
+}
+if (-not (Test-Path $rcedit)) { throw "rcedit not found" }
 
 $targets = @(
   (Join-Path $env:LOCALAPPDATA "Programs\Grok Build\Grok Build.exe"),
+  "C:\Users\truongit\AppData\Local\Programs\Grok Build\Grok Build.exe",
   (Join-Path $root "dist\desktop\win-unpacked\Grok Build.exe")
-)
+) | Select-Object -Unique
 
 Write-Host "3) Stamp installed / unpacked app exes..."
 foreach ($exe in $targets) {

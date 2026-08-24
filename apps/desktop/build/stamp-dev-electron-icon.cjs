@@ -26,24 +26,34 @@ const pathFile = path.join(__dirname, "dev-electron-path.txt");
 const DEV_NAME = "GrokBuild-dev.exe";
 
 function findRcedit() {
-  const cacheRoot = path.join(
-    process.env.LOCALAPPDATA || "",
-    "electron-builder",
-    "Cache",
-    "winCodeSign",
-  );
-  if (!fs.existsSync(cacheRoot)) return null;
-  const dirs = fs
-    .readdirSync(cacheRoot, { withFileTypes: true })
-    .filter((d) => d.isDirectory())
-    .map((d) => d.name)
-    .sort()
-    .reverse();
-  for (const d of dirs) {
+  const candidateRoots = [
+    path.join(process.env.LOCALAPPDATA || "", "electron-builder", "Cache", "winCodeSign"),
+    path.join(process.env.USERPROFILE || "", "AppData", "Local", "electron-builder", "Cache", "winCodeSign"),
+    "C:\\Users\\truongit\\AppData\\Local\\electron-builder\\Cache\\winCodeSign",
+    path.join(root, "node_modules", "electron-winstaller", "vendor"),
+    path.join(desktopRoot, "node_modules", "electron-winstaller", "vendor"),
+  ];
+
+  for (const cacheRoot of candidateRoots) {
+    if (!fs.existsSync(cacheRoot)) continue;
     for (const name of ["rcedit-x64.exe", "rcedit.exe", "rcedit-ia32.exe"]) {
-      const p = path.join(cacheRoot, d, name);
-      if (fs.existsSync(p)) return p;
+      const direct = path.join(cacheRoot, name);
+      if (fs.existsSync(direct)) return direct;
     }
+    try {
+      const dirs = fs
+        .readdirSync(cacheRoot, { withFileTypes: true })
+        .filter((d) => d.isDirectory())
+        .map((d) => d.name)
+        .sort()
+        .reverse();
+      for (const d of dirs) {
+        for (const name of ["rcedit-x64.exe", "rcedit.exe", "rcedit-ia32.exe"]) {
+          const p = path.join(cacheRoot, d, name);
+          if (fs.existsSync(p)) return p;
+        }
+      }
+    } catch {}
   }
   return null;
 }

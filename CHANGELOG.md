@@ -2,6 +2,13 @@
 
 Public, versioned changes for Grok Build Desktop.
 
+## 0.5.44 — 2026-08-24
+
+- Fixed Windows PE icon and product metadata stamping in `stamp-win-icon.cjs` with multi-path `rcedit` resolution and strict verification.
+- Re-packaged and published release artifacts with embedded Grok Build branding.
+
+Release details are maintained in `docs/releases/0.5.44.md`.
+
 ## 0.5.43 — 2026-08-24
 
 - Updated File Preview and Review diff panes with responsive, soft-wrapping flex lines that dynamically adapt to pane and window resizing without horizontal overflow.
