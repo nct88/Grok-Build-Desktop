@@ -2,6 +2,15 @@
 
 Public, versioned changes for Grok Build Desktop.
 
+## 0.5.41 — 2026-08-24
+
+- Added visible, accessible vertical separators for the sidebar, right panel and Files explorer/preview split, with mouse and keyboard resizing, bounded widths, reset and persisted layout state.
+- Added independent collapse/restore controls for the Project Explorer and file preview while keeping a reachable restore rail and preventing both panes from being hidden together.
+- Fixed Quick add and shared tool preset chips so their backgrounds size to their labels and wrap cleanly in compact panels.
+- Added runtime visual regression coverage for resizing, collapse/restore, persistence, minimum widths, light/dark themes and 150% Windows scale.
+
+Release details are maintained in `docs/releases/0.5.41.md`.
+
 ## 0.5.40 — 2026-08-24
 
 - Preserved independent running tasks, prompt queues, elapsed runtime and cached content across session-tab switches, with persistent direct tab renaming.

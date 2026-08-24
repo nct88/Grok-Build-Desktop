@@ -311,6 +311,7 @@ button { cursor: pointer; border: 0; background: none; }
 }
 .splitter {
   flex: 0 0 5px; cursor: col-resize; position: relative; z-index: 5; flex-shrink: 0;
+  touch-action: none; outline: none;
   transition:
     flex-basis .24s cubic-bezier(.22, 1, .36, 1),
     width .24s cubic-bezier(.22, 1, .36, 1),
@@ -318,10 +319,19 @@ button { cursor: pointer; border: 0; background: none; }
     min-width .24s cubic-bezier(.22, 1, .36, 1);
 }
 .splitter::after { content: ""; position: absolute; top: 0; bottom: 0; left: -2px; right: -2px; }
+.splitter::before {
+  content: ""; position: absolute; z-index: 1; top: 50%; left: 2px;
+  width: 1px; height: 34px; border-radius: 999px; transform: translateY(-50%);
+  background: var(--line); opacity: .52; pointer-events: none;
+}
 .splitter:hover::after, .splitter.dragging::after { background: var(--hover-strong); }
+.splitter:focus-visible::after { background: var(--hover-strong); outline: 1px solid var(--text-3); outline-offset: -1px; }
+.splitter:hover::before, .splitter.dragging::before, .splitter:focus-visible::before { background: var(--text-2); opacity: .9; }
 /* Disable width transitions while user drags splitters */
 body.resizing .sidebar,
 body.resizing .editor-pane,
+body.resizing .project-explorer,
+body.resizing .file-preview-pane,
 body.resizing .splitter {
   transition: none !important;
 }
@@ -330,6 +340,8 @@ body.resizing { cursor: col-resize !important; }
 body.resizing .splitter,
 body.resizing .sidebar,
 body.resizing .editor-pane,
+body.resizing .project-explorer,
+body.resizing .file-preview-pane,
 body.resizing .work-row { user-select: none !important; }
 body.resizing input,
 body.resizing textarea,
@@ -1967,10 +1979,6 @@ html[data-compact="on"] .step { font-size: 12px; }
 .send-btn:disabled { opacity: .4; cursor: default; }
 
 /* legacy aliases */
-.tool-chip {
-  width: 28px; height: 28px; border-radius: var(--radius); display: grid; place-items: center;
-  background: transparent; border: 0; color: var(--text-3);
-}
 .ctl { display: inline-flex; }
 .icon-circle { width: 28px; height: 28px; border-radius: var(--radius); display: grid; place-items: center; }
 .icon-circle.ghost { color: var(--text-3); }
@@ -2019,16 +2027,24 @@ html[data-compact="on"] .step { font-size: 12px; }
   flex: 1 1 auto;
   min-width: 0;
   min-height: 0;
-  display: grid;
-  grid-template-columns: clamp(154px, 39%, 258px) minmax(0, 1fr);
+  display: flex;
+  --file-explorer-width: 258px;
 }
 .project-explorer {
-  min-width: 0;
+  flex: 0 0 var(--file-explorer-width);
+  width: var(--file-explorer-width);
+  min-width: 132px;
+  max-width: calc(100% - 185px);
   min-height: 0;
   display: flex;
   flex-direction: column;
   background: color-mix(in srgb, var(--bg-panel) 86%, var(--bg));
-  border-right: 1px solid var(--line-soft);
+  overflow: hidden;
+  transition: width .2s cubic-bezier(.22, 1, .36, 1), flex-basis .2s cubic-bezier(.22, 1, .36, 1), min-width .2s cubic-bezier(.22, 1, .36, 1), max-width .2s cubic-bezier(.22, 1, .36, 1);
+}
+.file-splitter { flex-basis: 5px; border-inline: 1px solid var(--line-soft); }
+.file-splitter.file-pane-collapsed {
+  flex-basis: 0; width: 0; min-width: 0; border: 0; opacity: 0; pointer-events: none; overflow: hidden;
 }
 .explorer-head {
   min-height: 48px;
@@ -2123,11 +2139,14 @@ html[data-compact="on"] .step { font-size: 12px; }
 }
 .file-language { border: 0; background: transparent; padding-inline: 3px; color: var(--text-3); }
 .file-preview-pane {
-  min-width: 0;
+  flex: 1 1 auto;
+  min-width: 180px;
   min-height: 0;
   display: flex;
   flex-direction: column;
   background: var(--bg);
+  overflow: hidden;
+  transition: width .2s cubic-bezier(.22, 1, .36, 1), flex-basis .2s cubic-bezier(.22, 1, .36, 1), min-width .2s cubic-bezier(.22, 1, .36, 1), max-width .2s cubic-bezier(.22, 1, .36, 1);
 }
 .file-preview-head {
   min-height: 48px;
@@ -2138,6 +2157,30 @@ html[data-compact="on"] .step { font-size: 12px; }
   border-bottom: 1px solid var(--line-soft);
 }
 .file-preview-title-wrap { min-width: 0; flex: 1; display: flex; flex-direction: column; gap: 2px; }
+.file-preview-actions { display: inline-flex; align-items: center; gap: 4px; flex: 0 0 auto; }
+.file-workbench.explorer-collapsed .project-explorer {
+  flex: 0 0 36px; width: 36px; min-width: 36px; max-width: 36px;
+}
+.file-workbench.explorer-collapsed .explorer-head {
+  min-height: 48px; padding: 7px 5px; justify-content: center;
+}
+.file-workbench.explorer-collapsed .explorer-heading,
+.file-workbench.explorer-collapsed .explorer-actions > :not(#btnToggleExplorer),
+.file-workbench.explorer-collapsed .explorer-git,
+.file-workbench.explorer-collapsed .file-tree { display: none !important; }
+.file-workbench.preview-collapsed .project-explorer {
+  flex: 1 1 auto; width: auto; max-width: none;
+}
+.file-workbench.preview-collapsed .file-preview-pane {
+  flex: 0 0 36px; width: 36px; min-width: 36px; max-width: 36px;
+}
+.file-workbench.preview-collapsed .file-preview-head {
+  min-height: 48px; padding: 7px 5px; justify-content: center;
+}
+.file-workbench.preview-collapsed .file-preview-title-wrap,
+.file-workbench.preview-collapsed #editorLanguage,
+.file-workbench.preview-collapsed .file-preview-empty,
+.file-workbench.preview-collapsed .editor-body { display: none !important; }
 .editor-path {
   min-width: 0;
   color: var(--text);
@@ -2667,9 +2710,11 @@ html[data-compact="on"] .step { font-size: 12px; }
   border: 1px solid var(--line-soft);
 }
 .tool-presets {
-  display: flex; flex-wrap: wrap; gap: 6px;
+  display: flex; flex-wrap: wrap; align-items: center; gap: 6px;
 }
 .tool-chip {
+  flex: 0 0 auto; width: auto; min-width: max-content; min-height: 28px; height: auto;
+  display: inline-flex; align-items: center; justify-content: center; white-space: nowrap;
   padding: 4px 10px; border-radius: 999px; border: 1px solid var(--chip-border);
   background: var(--chip-bg); color: var(--text-2); font-size: 11.5px; font-weight: 500;
 }

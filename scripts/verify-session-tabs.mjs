@@ -26,6 +26,7 @@ try {
     window.show();
   });
   await page.waitForSelector("#sessionTabs");
+  await page.waitForFunction(() => typeof globalThis.GrokSessionTabs?.create === "function");
   await page.evaluate(() => {
     const rootEl = document.createElement("div");
     rootEl.id = "qaSessionTabs";

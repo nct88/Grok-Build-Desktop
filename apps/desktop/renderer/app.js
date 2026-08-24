@@ -2691,6 +2691,9 @@
       switchToolsTab(document.querySelector("#toolsSubnav .tools-subtab.active")?.dataset?.toolsTab || "health");
       paintMcpPresets();
     }
+    if (name === "files") {
+      requestAnimationFrame(() => setFileExplorerWidth(loadLayout().fileExplorerWidth || defaultFileExplorerWidth(), false));
+    }
   }
 
   function switchManagerTab(tabId) {
@@ -3107,7 +3110,7 @@
     const on = show !== false;
     if (on && (!pane.style.width || pane.style.width === "0px")) {
       const L = loadLayout();
-      const responsiveDefault = window.innerWidth >= 1700 ? 720 : window.innerWidth >= 1450 ? 500 : 400;
+      const responsiveDefault = window.innerWidth >= 1700 ? 720 : window.innerWidth >= 1450 ? 500 : window.innerWidth >= 1250 ? 450 : 400;
       pane.style.width = `${Math.max(320, Number(L.editorWidth) || responsiveDefault)}px`;
     }
     pane.classList.toggle("collapsed", !on);
@@ -3116,8 +3119,84 @@
       btn.setAttribute("aria-pressed", on ? "true" : "false");
     }
     saveLayout({ panelVisible: on });
+    if (on) {
+      requestAnimationFrame(() => setFileExplorerWidth(loadLayout().fileExplorerWidth || defaultFileExplorerWidth(), false));
+    }
     // Hiding panel leaves Tools unselected
     if (!on && sideNav === "tools") setSideNav(null);
+  }
+
+  const FILE_EXPLORER_MIN = 132;
+  const FILE_PREVIEW_MIN = 180;
+  const FILE_SPLITTER_WIDTH = 5;
+
+  function fileExplorerMaxWidth() {
+    const hostWidth = $("panelFiles")?.querySelector(".file-workbench")?.getBoundingClientRect().width || 0;
+    return Math.max(FILE_EXPLORER_MIN, Math.floor(hostWidth - FILE_PREVIEW_MIN - FILE_SPLITTER_WIDTH));
+  }
+
+  function defaultFileExplorerWidth() {
+    const hostWidth = $("panelFiles")?.querySelector(".file-workbench")?.getBoundingClientRect().width || 0;
+    return Math.min(258, Math.max(154, Math.round(hostWidth * 0.39) || 154));
+  }
+
+  function setFileExplorerWidth(value, persist = false) {
+    const workbench = $("panelFiles")?.querySelector(".file-workbench");
+    if (!workbench) return FILE_EXPLORER_MIN;
+    const requested = Number(value) || defaultFileExplorerWidth();
+    const width = Math.max(FILE_EXPLORER_MIN, Math.min(fileExplorerMaxWidth(), Math.round(requested)));
+    workbench.style.setProperty("--file-explorer-width", `${width}px`);
+    const split = $("splitFiles");
+    split?.setAttribute("aria-valuemin", String(FILE_EXPLORER_MIN));
+    split?.setAttribute("aria-valuemax", String(fileExplorerMaxWidth()));
+    split?.setAttribute("aria-valuenow", String(width));
+    if (persist) saveLayout({ fileExplorerWidth: width });
+    return width;
+  }
+
+  function updateFilePaneControls() {
+    const workbench = $("panelFiles")?.querySelector(".file-workbench");
+    if (!workbench) return;
+    const explorerVisible = !workbench.classList.contains("explorer-collapsed");
+    const previewVisible = !workbench.classList.contains("preview-collapsed");
+    const explorerButton = $("btnToggleExplorer");
+    const previewButton = $("btnTogglePreview");
+    const split = $("splitFiles");
+    const setControl = (button, visible, hideKey, showKey) => {
+      if (!button) return;
+      const key = visible ? hideKey : showKey;
+      const label = tt(key, visible ? "Hide pane" : "Show pane");
+      button.setAttribute("aria-pressed", visible ? "true" : "false");
+      button.setAttribute("data-i18n-title", key);
+      button.setAttribute("data-i18n-aria", key);
+      button.title = label;
+      button.setAttribute("aria-label", label);
+    };
+    setControl(explorerButton, explorerVisible, "hideProjectTree", "showProjectTree");
+    setControl(previewButton, previewVisible, "hideFilePreview", "showFilePreview");
+    const canResize = explorerVisible && previewVisible;
+    split?.classList.toggle("file-pane-collapsed", !canResize);
+    split?.setAttribute("aria-disabled", canResize ? "false" : "true");
+  }
+
+  function setFilePaneCollapsed(pane, collapsed, persist = true) {
+    const workbench = $("panelFiles")?.querySelector(".file-workbench");
+    if (!workbench) return;
+    const isExplorer = pane === "explorer";
+    const ownClass = isExplorer ? "explorer-collapsed" : "preview-collapsed";
+    const peerClass = isExplorer ? "preview-collapsed" : "explorer-collapsed";
+    if (collapsed && workbench.classList.contains(peerClass)) workbench.classList.remove(peerClass);
+    workbench.classList.toggle(ownClass, Boolean(collapsed));
+    updateFilePaneControls();
+    if (!collapsed) {
+      requestAnimationFrame(() => setFileExplorerWidth(loadLayout().fileExplorerWidth || defaultFileExplorerWidth(), false));
+    }
+    if (persist) {
+      saveLayout({
+        fileExplorerCollapsed: workbench.classList.contains("explorer-collapsed"),
+        filePreviewCollapsed: workbench.classList.contains("preview-collapsed"),
+      });
+    }
   }
 
   function isTermOpen() {
@@ -4803,6 +4882,7 @@
     renderReviewList();
     relocalizeTimeline();
     showEmpty();
+    updateFilePaneControls();
     void refreshFolderTrustUi();
     if (window.GrokIcons) window.GrokIcons.applyAll();
     applyTheme(
@@ -7202,27 +7282,57 @@
   // splitters
   function setupSplitters() {
     const specs = [
-      { el: $("split1"), target: $("colSidebar"), key: "sidebarWidth", min: 180, reverse: false },
-      { el: $("split2"), target: $("colEditor"), key: "editorWidth", min: 320, reverse: true },
+      {
+        el: $("split1"), target: $("colSidebar"), key: "sidebarWidth", min: 180, reverse: false, defaultWidth: 248,
+        max: () => Math.min(400, Math.round(window.innerWidth * 0.6)),
+      },
+      {
+        el: $("split2"), target: $("colEditor"), key: "editorWidth", min: 320, reverse: true,
+        defaultWidth: () => (window.innerWidth >= 1700 ? 720 : window.innerWidth >= 1450 ? 500 : window.innerWidth >= 1250 ? 450 : 400),
+        max: () => Math.max(320, Math.min(Math.round(window.innerWidth * 0.6), ($("workRow")?.clientWidth || window.innerWidth) - 285)),
+      },
+      {
+        el: $("splitFiles"), target: $("projectExplorer"), key: "fileExplorerWidth", min: FILE_EXPLORER_MIN,
+        reverse: false, defaultWidth: defaultFileExplorerWidth, max: fileExplorerMaxWidth,
+        disabled: () => $("splitFiles")?.getAttribute("aria-disabled") === "true",
+        write: (width) => setFileExplorerWidth(width, false),
+      },
     ];
+    const readWidth = (spec) => spec.target.getBoundingClientRect().width;
+    const getMax = (spec) => Math.max(spec.min, Number(typeof spec.max === "function" ? spec.max() : spec.max) || window.innerWidth * 0.6);
+    const writeWidth = (spec, value) => {
+      const width = Math.max(spec.min, Math.min(getMax(spec), Math.round(value)));
+      if (spec.write) spec.write(width);
+      else spec.target.style.width = `${width}px`;
+      spec.el.setAttribute("aria-valuemin", String(spec.min));
+      spec.el.setAttribute("aria-valuemax", String(Math.round(getMax(spec))));
+      spec.el.setAttribute("aria-valuenow", String(width));
+      return width;
+    };
+    const saveSpec = (spec, width = Math.round(readWidth(spec))) => saveLayout({ [spec.key]: Math.round(width) });
     for (const s of specs) {
       if (!s.el || !s.target) continue;
+      s.el.setAttribute("aria-valuemin", String(s.min));
+      s.el.setAttribute("aria-valuemax", String(Math.round(getMax(s))));
+      s.el.setAttribute("aria-valuenow", String(Math.round(readWidth(s))));
       s.el.addEventListener("pointerdown", (ev) => {
         // Only start drag from the splitter strip itself
-        if (ev.button !== 0) return;
+        if (ev.button !== 0 || s.disabled?.()) return;
         ev.preventDefault();
         s.el.setPointerCapture(ev.pointerId);
         s.el.classList.add("dragging");
         document.body.classList.add("resizing");
         const startX = ev.clientX;
-        const startW = s.target.getBoundingClientRect().width;
+        const startW = readWidth(s);
         const onMove = (e) => {
           const dx = e.clientX - startX;
           let w = s.reverse ? startW - dx : startW + dx;
-          w = Math.max(s.min, Math.min(window.innerWidth * 0.6, w));
-          s.target.style.width = `${Math.round(w)}px`;
+          writeWidth(s, w);
         };
+        let ended = false;
         const onUp = (e) => {
+          if (ended) return;
+          ended = true;
           try {
             s.el.releasePointerCapture(e.pointerId);
           } catch {
@@ -7234,12 +7344,34 @@
           s.el.removeEventListener("pointerup", onUp);
           s.el.removeEventListener("pointercancel", onUp);
           s.el.removeEventListener("lostpointercapture", onUp);
-          saveLayout({ [s.key]: Math.round(s.target.getBoundingClientRect().width) });
+          saveSpec(s);
         };
         s.el.addEventListener("pointermove", onMove);
         s.el.addEventListener("pointerup", onUp);
         s.el.addEventListener("pointercancel", onUp);
         s.el.addEventListener("lostpointercapture", onUp);
+      });
+      s.el.addEventListener("keydown", (event) => {
+        if (s.disabled?.()) return;
+        const isArrow = event.key === "ArrowLeft" || event.key === "ArrowRight";
+        if (!isArrow && event.key !== "Home" && event.key !== "End") return;
+        event.preventDefault();
+        const step = event.shiftKey ? 40 : 16;
+        let next = readWidth(s);
+        if (event.key === "Home") next = s.reverse ? getMax(s) : s.min;
+        else if (event.key === "End") next = s.reverse ? s.min : getMax(s);
+        else {
+          const direction = event.key === "ArrowRight" ? 1 : -1;
+          next += direction * step * (s.reverse ? -1 : 1);
+        }
+        const applied = writeWidth(s, next);
+        saveSpec(s, applied);
+      });
+      s.el.addEventListener("dblclick", () => {
+        if (s.disabled?.()) return;
+        const value = typeof s.defaultWidth === "function" ? s.defaultWidth() : s.defaultWidth;
+        const applied = writeWidth(s, value || s.min);
+        saveSpec(s, applied);
       });
     }
     // Global safety: never leave body.resizing stuck (blocks typing in Electron)
@@ -7253,9 +7385,36 @@
     const L = loadLayout();
     if (L.sidebarWidth) $("colSidebar").style.width = `${L.sidebarWidth}px`;
     if (L.editorWidth) $("colEditor").style.width = `${Math.max(320, L.editorWidth)}px`;
+    const workbench = $("panelFiles")?.querySelector(".file-workbench");
+    workbench?.classList.toggle("explorer-collapsed", Boolean(L.fileExplorerCollapsed));
+    workbench?.classList.toggle("preview-collapsed", Boolean(L.filePreviewCollapsed) && !L.fileExplorerCollapsed);
+    setFileExplorerWidth(L.fileExplorerWidth || defaultFileExplorerWidth(), false);
+    updateFilePaneControls();
     setSidebarVisible(L.sidebarVisible !== false);
     setPanelVisible(L.panelVisible !== false);
     setTermVisible(Boolean(L.termVisible));
+    window.addEventListener("resize", () => {
+      if (!workbench?.classList.contains("explorer-collapsed") && !workbench?.classList.contains("preview-collapsed")) {
+        setFileExplorerWidth(loadLayout().fileExplorerWidth || defaultFileExplorerWidth(), false);
+      }
+      for (const spec of specs) {
+        if (!spec.el || !spec.target) continue;
+        spec.el.setAttribute("aria-valuemax", String(Math.round(getMax(spec))));
+        spec.el.setAttribute("aria-valuenow", String(Math.round(readWidth(spec))));
+      }
+    });
+    if (workbench && typeof ResizeObserver !== "undefined") {
+      let resizeFrame = 0;
+      const observer = new ResizeObserver(() => {
+        cancelAnimationFrame(resizeFrame);
+        resizeFrame = requestAnimationFrame(() => {
+          if (!workbench.classList.contains("explorer-collapsed") && !workbench.classList.contains("preview-collapsed")) {
+            setFileExplorerWidth(loadLayout().fileExplorerWidth || defaultFileExplorerWidth(), false);
+          }
+        });
+      });
+      observer.observe(workbench);
+    }
   }
 
   /** Titlebar File/Edit/… → native popup menus */
@@ -7342,6 +7501,14 @@
   editorPath?.addEventListener("dblclick", () => void openCurrentInIde());
   $("btnRefreshFiles")?.addEventListener("click", () => void refreshFileTree(workspaceRoot));
   $("btnCollapseFiles")?.addEventListener("click", collapseExplorerFolders);
+  $("btnToggleExplorer")?.addEventListener("click", () => {
+    const collapsed = $("panelFiles")?.querySelector(".file-workbench")?.classList.contains("explorer-collapsed");
+    setFilePaneCollapsed("explorer", !collapsed);
+  });
+  $("btnTogglePreview")?.addEventListener("click", () => {
+    const collapsed = $("panelFiles")?.querySelector(".file-workbench")?.classList.contains("preview-collapsed");
+    setFilePaneCollapsed("preview", !collapsed);
+  });
   $("btnHistory").onclick = () => {
     setSideNav("history");
     setSidebarVisible(true);

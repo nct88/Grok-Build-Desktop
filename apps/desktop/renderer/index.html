@@ -78,7 +78,7 @@
       </div>
     </aside>
 
-    <div class="splitter" id="split1" data-key="sidebarWidth"></div>
+    <div class="splitter" id="split1" data-key="sidebarWidth" role="separator" tabindex="0" aria-orientation="vertical" aria-controls="colSidebar" data-i18n-aria="resizeSidebar" aria-label="Resize project sidebar"></div>
 
     <!-- Codex-like main: chat + optional right tools, terminal docked bottom -->
     <div class="main-stack" id="mainStack">
@@ -299,7 +299,7 @@
           </footer>
         </section>
 
-        <div class="splitter" id="split2" data-key="editorWidth" data-reverse="1"></div>
+        <div class="splitter" id="split2" data-key="editorWidth" data-reverse="1" role="separator" tabindex="0" aria-orientation="vertical" aria-controls="colEditor" data-i18n-aria="resizePanel" aria-label="Resize right panel"></div>
 
         <aside class="col editor-pane" id="colEditor">
           <div class="editor-tabs">
@@ -317,13 +317,16 @@
           </div>
           <div id="panelFiles" class="rpanel files-panel">
             <div class="file-workbench">
-              <section class="project-explorer" aria-labelledby="filesTitleLabel">
+              <section class="project-explorer" id="projectExplorer" aria-labelledby="filesTitleLabel">
                 <div class="explorer-head">
                   <div class="explorer-heading">
                     <span class="panel-bar-title" id="filesTitleLabel" data-i18n="filesTitle">Project files</span>
                     <span class="explorer-root" id="filesRoot">—</span>
                   </div>
                   <div class="explorer-actions">
+                    <button id="btnToggleExplorer" class="explorer-action pane-toggle" type="button" data-i18n-title="hideProjectTree" data-i18n-aria="hideProjectTree" title="Hide project tree" aria-label="Hide project tree" aria-pressed="true">
+                      <span data-icon="panelLeft" data-icon-size="14"></span>
+                    </button>
                     <button id="btnCollapseFiles" class="explorer-action" type="button" data-i18n-title="collapseFolders" title="Collapse folders" aria-label="Collapse folders">
                       <span data-icon="chevronRight" data-icon-size="14"></span>
                     </button>
@@ -340,13 +343,19 @@
                 </div>
                 <div id="fileTree" class="file-tree" role="tree" data-i18n-aria="filesTitle" aria-label="Project files"></div>
               </section>
-              <section class="file-preview-pane" aria-labelledby="editorPath">
+              <div class="splitter file-splitter" id="splitFiles" data-key="fileExplorerWidth" role="separator" tabindex="0" aria-orientation="vertical" aria-controls="projectExplorer filePreviewPane" data-i18n-aria="resizeFilePanes" aria-label="Resize project tree and file preview"></div>
+              <section class="file-preview-pane" id="filePreviewPane" aria-labelledby="editorPath">
                 <div class="file-preview-head">
                   <div class="file-preview-title-wrap">
                     <span class="editor-path" id="editorPath" data-i18n="selectFile">Select a file</span>
                     <span class="file-preview-sub" id="editorRelativePath"></span>
                   </div>
-                  <span class="language-badge hidden" id="editorLanguage"></span>
+                  <div class="file-preview-actions">
+                    <span class="language-badge hidden" id="editorLanguage"></span>
+                    <button id="btnTogglePreview" class="explorer-action pane-toggle" type="button" data-i18n-title="hideFilePreview" data-i18n-aria="hideFilePreview" title="Hide file preview" aria-label="Hide file preview" aria-pressed="true">
+                      <span data-icon="panelRight" data-icon-size="14"></span>
+                    </button>
+                  </div>
                 </div>
                 <div id="filePreviewEmpty" class="file-preview-empty">
                   <span class="file-preview-empty-icon" data-icon="file" data-icon-size="22" aria-hidden="true"></span>
