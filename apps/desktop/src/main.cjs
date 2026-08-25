@@ -658,8 +658,32 @@ function workspacePathContext() {
   };
 }
 
+/** Project Files / preview: the sidebar-selected folder, not the live agent cwd. Also allows exploring any project in recentProjects. */
+function explorerPathContext(targetPath) {
+  const state = loadState();
+  const raw = state.workspaceRoot || null;
+  const root = raw && !isRecentsWorkspace(raw) ? raw : null;
+  const recentProjects = Array.isArray(state.recentProjects) ? state.recentProjects : [];
+  const candidateRoot = targetPath && !isRecentsWorkspace(targetPath) ? targetPath : null;
+  const primaryRoot = root || candidateRoot;
+  const combinedExtras = [
+    ...extrasForProject(primaryRoot),
+    ...recentProjects.filter((p) => p && !isRecentsWorkspace(p)),
+  ];
+  return {
+    workspaceRoot: primaryRoot,
+    extraRoots: sanitizeExtraRoots(combinedExtras, primaryRoot),
+    allowOutside: Boolean(state.allowOutside),
+    grokHome: grokHomeDir(),
+  };
+}
+
 function guardedPath(filePath, { write = false } = {}) {
   return assertWorkspacePath(filePath, { ...workspacePathContext(), write });
+}
+
+function guardedExplorerPath(filePath, { write = false } = {}) {
+  return assertWorkspacePath(filePath, { ...explorerPathContext(filePath), write });
 }
 
 /** Newest auth entry from ~/.grok/auth.json (includes secrets — main only). */
@@ -2638,7 +2662,12 @@ app.whenReady().then(() => {
   });
 
   ipcMain.handle("fs:readText", async (_e, filePath) => {
-    const resolved = guardedPath(filePath);
+    let resolved;
+    try {
+      resolved = guardedExplorerPath(filePath);
+    } catch {
+      resolved = guardedPath(filePath);
+    }
     const stat = fs.statSync(resolved);
     if (!stat.isFile()) throw new Error("Not a file");
     if (stat.size > 2_000_000) {
@@ -2654,7 +2683,7 @@ app.whenReady().then(() => {
   ipcMain.handle("fs:listDir", async (_e, dirPath) => {
     const base = dirPath || loadState().workspaceRoot;
     if (!base) throw new Error("Open a project first.");
-    const resolved = guardedPath(base);
+    const resolved = guardedExplorerPath(base);
     const entries = fs.readdirSync(resolved, { withFileTypes: true });
     const hiddenNoise = new Set([
       ".git",

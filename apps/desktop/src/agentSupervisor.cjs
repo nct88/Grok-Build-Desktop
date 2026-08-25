@@ -156,6 +156,13 @@ class AgentSupervisor {
     return st === "connected" || st === "running" || st === "starting";
   }
 
+  _sameWorkspace(a, b) {
+    if (!a || !b) return !a && !b;
+    const left = String(a).replace(/[/\\]+$/, "").toLowerCase();
+    const right = String(b).replace(/[/\\]+$/, "").toLowerCase();
+    return left === right;
+  }
+
   isClientWarm() {
     return this._isWarm(this.active());
   }
@@ -225,7 +232,7 @@ class AgentSupervisor {
     if (
       !force &&
       this._isWarm(slot) &&
-      slot.workspace === workspaceRoot &&
+      this._sameWorkspace(slot.workspace, workspaceRoot) &&
       launchFingerprint(opts) === launchFingerprint(slot.connectOptions)
     ) {
       if (resumeId) {

@@ -1,8 +1,7 @@
 /**
- * Phase B1 — multi-session tabs (UI + snapshot).
- * Each tab owns an independent timeline snapshot, runtime state and optional
- * AgentSupervisor slot. Switching tabs is presentation-only; the renderer
- * decides when a tab needs to bind/resume an agent.
+ * Multi-session state (snapshot, queue, slot). The visible switcher is the
+ * left sidebar project/chat list — this module no longer paints a tab rail.
+ * Switching is presentation-only; the renderer decides when to bind/resume.
  */
 (() => {
   let seq = 1;
@@ -21,7 +20,6 @@
     /** @type {Array<object>} */
     let tabs = [];
     let activeId = null;
-    let runtimeTicker = 0;
 
     function makeTab(partial) {
       return {
@@ -45,101 +43,20 @@
       };
     }
 
-    function formatElapsed(ms) {
-      const sec = Math.max(0, Math.floor(Number(ms || 0) / 1000));
-      return `${Math.floor(sec / 60)}:${String(sec % 60).padStart(2, "0")}`;
-    }
-
-    function refreshRuntimeLabels() {
-      if (!root.querySelectorAll) return;
-      const now = Date.now();
-      for (const el of root.querySelectorAll(".session-tab-runtime")) {
-        const tab = tabs.find((t) => t.id === el.dataset.tabId);
-        if (!tab) continue;
-        el.textContent = tab.busy && tab.turnStartedAt
-          ? formatElapsed(now - tab.turnStartedAt)
-          : "";
+    function hideRail() {
+      if (!root) return;
+      root.innerHTML = "";
+      root.classList.add("session-tabs");
+      root.classList.add("session-tabs-empty");
+      root.hidden = true;
+      if (typeof root.setAttribute === "function") {
+        root.setAttribute("aria-hidden", "true");
+        root.setAttribute("hidden", "");
       }
-    }
-
-    function syncRuntimeTicker() {
-      const needsTicker = tabs.length > 1 && tabs.some((t) => t.busy && t.turnStartedAt);
-      if (needsTicker && !runtimeTicker) {
-        runtimeTicker = setInterval(refreshRuntimeLabels, 1000);
-      } else if (!needsTicker && runtimeTicker) {
-        clearInterval(runtimeTicker);
-        runtimeTicker = 0;
-      }
-      refreshRuntimeLabels();
     }
 
     function render() {
-      root.innerHTML = "";
-      root.classList.add("session-tabs");
-      // One conversation lives under the sidebar project. Hide the rail until
-      // the user explicitly keeps two chats open at once.
-      if (tabs.length <= 1) {
-        root.classList.add("session-tabs-empty");
-        syncRuntimeTicker();
-        return;
-      }
-      root.classList.remove("session-tabs-empty");
-      const rail = document.createElement("div");
-      rail.className = "session-tabs-rail";
-      for (const t of tabs) {
-        const btn = document.createElement("button");
-        btn.type = "button";
-        btn.className = "session-tab" + (t.id === activeId ? " active" : "");
-        btn.dataset.tabId = t.id;
-        btn.dataset.busy = t.busy ? "true" : "false";
-        btn.title = `${t.title || "Chat"}${t.busy ? " · Running" : ""} · Double-click to rename`;
-        if (t.busy) {
-          const dot = document.createElement("span");
-          dot.className = "session-tab-running";
-          dot.setAttribute("aria-label", "Running");
-          btn.appendChild(dot);
-        }
-        const label = document.createElement("span");
-        label.className = "session-tab-label";
-        label.textContent = t.title;
-        label.ondblclick = (ev) => {
-          ev.stopPropagation();
-          opts.onRename?.(t);
-        };
-        btn.appendChild(label);
-        const runtime = document.createElement("span");
-        runtime.className = "session-tab-runtime";
-        runtime.dataset.tabId = t.id;
-        btn.appendChild(runtime);
-        const x = document.createElement("span");
-        x.className = "session-tab-x";
-        x.textContent = "×";
-        x.title = "Close tab";
-        x.onclick = (ev) => {
-          ev.stopPropagation();
-          closeTab(t.id);
-        };
-        btn.appendChild(x);
-        btn.onclick = () => activate(t.id);
-        btn.oncontextmenu = (ev) => {
-          ev.preventDefault();
-          opts.onRename?.(t);
-        };
-        rail.appendChild(btn);
-      }
-      const add = document.createElement("button");
-      add.type = "button";
-      add.className = "session-tab-add";
-      add.title = "New chat tab";
-      add.setAttribute("aria-label", "New chat tab");
-      add.textContent = "+";
-      add.onclick = () => {
-        if (opts.onNew) opts.onNew();
-        else addTab({});
-      };
-      rail.appendChild(add);
-      root.appendChild(rail);
-      syncRuntimeTicker();
+      hideRail();
     }
 
     function getActive() {

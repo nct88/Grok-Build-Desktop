@@ -703,7 +703,7 @@
     emptyBody: () => tt("typeToStart", "Type a message below to start. Try /imagine …"),
   });
 
-  // ── Phase B1 session tabs ──
+  // ── Session cache (sidebar switches; tab rail stays hidden) ──
   function restoreStoreItems(items) {
     stopActivityTimer();
     activityId = null;
@@ -2544,6 +2544,23 @@
     return span;
   }
 
+  function ipcErrorMessage(error) {
+    return String(error?.message || error || "")
+      .replace(/^Error invoking remote method '[^']+':\s*(?:Error:\s*)?/i, "")
+      .trim();
+  }
+
+  function explorerListError(error, fallbackKey, fallback) {
+    const raw = ipcErrorMessage(error);
+    if (/path outside workspace/i.test(raw)) {
+      return tt(
+        "projectFilesOutsideWorkspace",
+        "This folder is outside the project selected in the sidebar. Retry lists that project again.",
+      );
+    }
+    return raw || tt(fallbackKey, fallback);
+  }
+
   function explorerState(container, kind, message, retry) {
     const state = document.createElement("div");
     state.className = `explorer-state ${kind || ""}`.trim();
@@ -2617,7 +2634,7 @@
           explorerState(
             children,
             "error",
-            error?.message || tt("cannotListFolder", "Cannot list this folder."),
+            explorerListError(error, "cannotListFolder", "Cannot list this folder."),
             () => {
               row.setAttribute("aria-expanded", "false");
               row.click();
@@ -2675,8 +2692,8 @@
       explorerState(
         fileTree,
         "error",
-        error?.message || tt("cannotListProject", "Cannot list project files."),
-        () => void refreshFileTree(targetRoot),
+        explorerListError(error, "cannotListProject", "Cannot list project files."),
+        () => void refreshFileTree(workspaceRoot || targetRoot),
       );
     }
   }
@@ -3616,7 +3633,10 @@
       ico.setAttribute("data-icon", meta.icon);
       window.GrokIcons.mount(ico, meta.icon, { size: 14, className: "icon" });
     }
-    if (btn) btn.dataset.perm = v;
+    if (btn) {
+      btn.dataset.perm = v;
+      btn.title = `Permission: ${meta.label}`;
+    }
     const menu = $("menuPermission");
     if (menu) {
       for (const b of menu.querySelectorAll("[data-value]")) {
@@ -3669,8 +3689,12 @@
         : "";
     const modelLabel = $("modelLabel");
     if (modelLabel) modelLabel.textContent = modelTxt || "Model";
+    const btnModel = $("btnModel");
+    if (btnModel) btnModel.title = `Model: ${modelTxt || "Model"}`;
     const effortLabel = $("effortLabel");
     if (effortLabel) effortLabel.textContent = effortTxt || "Effort";
+    const btnEffort = $("btnEffort");
+    if (btnEffort) btnEffort.title = `Effort: ${effortTxt || "Effort"}`;
     rebuildModelMenus();
   }
 
@@ -6540,6 +6564,10 @@
     return slot?.state === "running" || slot?.state === "starting";
   }
 
+  function slotMatchesTabWorkspace(slot, cwd) {
+    return samePath(slot?.workspace || "", cwd || "");
+  }
+
   async function ensureActiveTabAgent() {
     const tab = sessionTabs?.getActive?.();
     if (!tab) throw new Error("No active chat tab.");
@@ -6547,12 +6575,12 @@
     const state = await api.agentSlots?.();
     const slots = Array.isArray(state?.slots) ? state.slots : [];
     let slot = tab.slotId ? slots.find((item) => item.id === tab.slotId) : null;
+    const sameSession =
+      !tab.sessionId || !slot?.sessionId || slot.sessionId === tab.sessionId;
 
-    if (
-      slot &&
-      slot.warm &&
-      (!tab.sessionId || !slot.sessionId || slot.sessionId === tab.sessionId)
-    ) {
+    // Reuse a warm slot only when it already belongs to this tab's project.
+    // Otherwise a new chat under Project B inherits Project A's session cwd.
+    if (slot && slot.warm && sameSession && slotMatchesTabWorkspace(slot, cwd)) {
       await api.setActiveAgentSlot?.(slot.id);
       if (!tab.sessionId && slot.sessionId) {
         tab.sessionId = slot.sessionId;
@@ -6560,17 +6588,23 @@
       }
       agentConnected = true;
       agentWorkspace = slot.workspace || cwd || null;
+      if (cwd) tab.cwd = cwd;
       return slot;
     }
 
-    if (slot && slotIsRunning(slot)) {
+    if (slot && slotIsRunning(slot) && !slotMatchesTabWorkspace(slot, cwd)) {
+      slot = null;
+      tab.slotId = null;
+    } else if (slot && slotIsRunning(slot)) {
       throw new Error(tt("tabSessionMismatch", "This tab's agent is still busy with another session."));
     }
 
     // Reuse only a stopped slot. Running slots belong to their current tabs and
     // must not be resumed/replaced as a side effect of sending elsewhere.
     if (!slot) {
-      slot = slots.find((item) => !slotIsRunning(item));
+      slot =
+        slots.find((item) => !slotIsRunning(item) && slotMatchesTabWorkspace(item, cwd)) ||
+        slots.find((item) => !slotIsRunning(item));
     }
 
     if (!slot && slots.length < Number(state?.maxSlots || 2)) {
@@ -6584,6 +6618,7 @@
       }
       tab.slotId = spawned?.slotId || null;
       tab.sessionId = spawned?.sessionId || tab.sessionId || null;
+      tab.cwd = cwd || tab.cwd || null;
       activeSessionId = tab.sessionId;
       if (tab.slotId) await api.setActiveAgentSlot?.(tab.slotId);
       agentConnected = true;
@@ -6606,7 +6641,7 @@
     let sessionId = tab.sessionId || null;
     if (sessionId) {
       await api.loadSession(sessionId, cwd, connectOpts());
-    } else if (slot.warm) {
+    } else if (slot.warm && slotMatchesTabWorkspace(slot, cwd)) {
       const created = await api.newSession();
       sessionId = created?.sessionId || null;
     } else {
@@ -6617,6 +6652,7 @@
     }
 
     tab.sessionId = sessionId;
+    if (cwd) tab.cwd = cwd;
     activeSessionId = sessionId;
     agentConnected = true;
     agentWorkspace = cwd || null;

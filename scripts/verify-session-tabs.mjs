@@ -25,102 +25,65 @@ try {
     window.setContentSize(1000, 640);
     window.show();
   });
-  await page.waitForSelector("#sessionTabs");
+  await page.waitForSelector("#sessionTabs", { state: "attached" });
+  await page.waitForSelector("#btnNew");
   await page.waitForFunction(() => typeof globalThis.GrokSessionTabs?.create === "function");
-  await page.evaluate(() => {
-    const rootEl = document.createElement("div");
-    rootEl.id = "qaSessionTabs";
-    rootEl.className = "session-tabs";
-    document.querySelector("#sessionTabs").after(rootEl);
-    let tabs;
-    tabs = globalThis.GrokSessionTabs.create({
-      root: rootEl,
-      onActivate() {},
-      onRename(tab) {
-        tabs.updateTab(tab.id, { title: "Renamed review tab" });
-      },
-    });
-    const first = tabs.getActive();
-    tabs.updateTab(first.id, {
-      title: "Implement LiveKit lifecycle recovery",
-      sessionId: "session-a",
-      slotId: "primary",
-      busy: true,
-      turnPhase: "tools",
-      turnStartedAt: Date.now() - 65_000,
-    });
-    tabs.addTab(
-      {
-        title: "Review permission contention edge cases with a deliberately long title",
-        sessionId: "session-b",
-        cwd: "C:\\workspace\\review",
-      },
-      true,
-    );
-    globalThis.__tabsQa = tabs;
-  });
-
-  await page.waitForTimeout(1100);
-  const before = await page.evaluate(() => {
-    const rootEl = document.querySelector("#qaSessionTabs");
-    const rail = rootEl.querySelector(".session-tabs-rail");
-    const running = rootEl.querySelector('.session-tab[data-busy="true"]');
-    const runtime = running?.querySelector(".session-tab-runtime");
-    const active = rootEl.querySelector(".session-tab.active");
-    const rect = (el) => {
-      const value = el?.getBoundingClientRect();
-      return value
-        ? { left: value.left, right: value.right, top: value.top, bottom: value.bottom, width: value.width, height: value.height }
-        : null;
-    };
-    return {
-      root: rect(rootEl),
-      rail: rect(rail),
-      running: rect(running),
-      active: rect(active),
-      runtime: runtime?.textContent || "",
-      hasDot: Boolean(running?.querySelector(".session-tab-running")),
-      horizontalOverflow: document.documentElement.scrollWidth > innerWidth,
-      railScrollable: rail ? rail.scrollWidth >= rail.clientWidth : false,
-    };
-  });
 
   const failures = [];
-  if (!before.root || before.root.height < 30 || before.root.height > 48) failures.push(`tab rail height ${before.root?.height}`);
-  if (!before.running || !before.active) failures.push("running/active tab missing");
-  if (!before.hasDot) failures.push("running indicator missing");
-  if (!/^1:0[5-9]$/.test(before.runtime)) failures.push(`runtime did not advance: ${before.runtime}`);
-  if (before.horizontalOverflow) failures.push("page has horizontal overflow");
-  if (!before.railScrollable) failures.push("tab rail lacks bounded overflow policy");
 
-  await page.locator("#qaSessionTabs .session-tab.active .session-tab-label").dblclick();
-  const renamed = await page.locator("#qaSessionTabs .session-tab.active .session-tab-label").textContent();
-  if (renamed !== "Renamed review tab") failures.push(`direct rename failed: ${renamed}`);
+  async function railState() {
+    return page.evaluate(() => {
+      const rootEl = document.querySelector("#sessionTabs");
+      const rect = rootEl?.getBoundingClientRect();
+      return {
+        hiddenAttr: rootEl?.hasAttribute("hidden"),
+        emptyClass: rootEl?.classList.contains("session-tabs-empty"),
+        chips: document.querySelectorAll("#sessionTabs .session-tab").length,
+        height: rect ? rect.height : -1,
+        display: rootEl ? getComputedStyle(rootEl).display : "",
+        sidebarProjects: Boolean(document.querySelector("#projectList, .project-list, #colSidebar")),
+        newChat: Boolean(document.querySelector("#btnNew")),
+      };
+    });
+  }
+
+  const before = await railState();
+  if (!before.emptyClass) failures.push("live #sessionTabs missing session-tabs-empty");
+  if (!before.hiddenAttr && before.display !== "none") failures.push("session tab rail is visible");
+  if (before.chips !== 0) failures.push(`session tab chips still painted: ${before.chips}`);
+  if (before.height > 2 && before.display !== "none") failures.push(`tab rail still occupies layout: ${before.height}`);
+  if (!before.sidebarProjects) failures.push("left sidebar project list missing");
+  if (!before.newChat) failures.push("sidebar New chat button missing");
+
+  // Creating a second in-memory chat must not revive the rail.
+  await page.evaluate(() => {
+    const rootEl = document.querySelector("#sessionTabs");
+    const tabs = globalThis.GrokSessionTabs.create({
+      root: rootEl,
+      onActivate() {},
+    });
+    tabs.addTab({ title: "Second sidebar chat", sessionId: "session-b" }, true);
+    globalThis.__tabsQa = tabs;
+  });
+  const afterTwo = await railState();
+  if (!afterTwo.emptyClass || afterTwo.chips !== 0 || afterTwo.display !== "none") {
+    failures.push(`rail reappeared after second chat: ${JSON.stringify(afterTwo)}`);
+  }
 
   await page.screenshot({ path: path.join(evidenceDir, "session-tabs-dark-1000x640.png") });
-  await page.locator("#qaSessionTabs").screenshot({ path: path.join(evidenceDir, "session-tabs-dark-detail.png") });
   await page.evaluate(() => {
     document.documentElement.dataset.theme = "light";
   });
   await page.waitForTimeout(120);
   await page.screenshot({ path: path.join(evidenceDir, "session-tabs-light-1000x640.png") });
-  await page.locator("#qaSessionTabs").screenshot({ path: path.join(evidenceDir, "session-tabs-light-detail.png") });
 
   for (const scale of [1.25, 1.5]) {
     await electronApp.evaluate(({ BrowserWindow }, zoomFactor) => {
       BrowserWindow.getAllWindows()[0].webContents.setZoomFactor(zoomFactor);
     }, scale);
-    const scaled = await page.evaluate(() => {
-      const rootEl = document.querySelector("#qaSessionTabs");
-      const buttons = [...rootEl.querySelectorAll(".session-tab")];
-      return {
-        pageOverflow: document.documentElement.scrollWidth > innerWidth,
-        clipped: buttons.some((button) => button.scrollHeight > button.clientHeight + 1),
-        reachable: rootEl.scrollWidth <= document.querySelector(".conversation").scrollWidth + 1,
-      };
-    });
-    if (scaled.pageOverflow || scaled.clipped || !scaled.reachable) {
-      failures.push(`scale ${scale} tab geometry: ${JSON.stringify(scaled)}`);
+    const scaled = await railState();
+    if (scaled.chips !== 0 || scaled.display !== "none") {
+      failures.push(`scale ${scale} tab rail visible: ${JSON.stringify(scaled)}`);
     }
     if (scale === 1.5) {
       await page.screenshot({ path: path.join(evidenceDir, "session-tabs-light-1000x640-scale150.png") });
@@ -137,15 +100,9 @@ try {
   await page.waitForTimeout(120);
   await page.screenshot({ path: path.join(evidenceDir, "session-tabs-dark-1440x900.png") });
 
-  await page.evaluate(() => {
-    const tabs = globalThis.__tabsQa;
-    const running = tabs.tabs.find((tab) => tab.busy);
-    if (running) tabs.updateTab(running.id, { busy: false });
-  });
-
   if (failures.length) throw new Error(failures.join("; "));
   console.log(
-    `Session tabs OK (${version}): cache rail, rename, running dot, elapsed=${before.runtime}, dark/light, 1000x640 + 1440x900, 125/150%.`,
+    `Session tabs OK (${version}): rail hidden; sidebar New chat + project list remain; dark/light, 1000x640 + 1440x900, 125/150%.`,
   );
   console.log(`Visual evidence written to ${evidenceDir}`);
 } finally {

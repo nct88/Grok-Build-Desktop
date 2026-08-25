@@ -826,13 +826,11 @@ body.resizing button { user-select: auto !important; cursor: inherit; }
 
 @media (max-width: 1040px) {
   .conv-header { gap: 8px; padding-inline: 12px; }
-  .open-ide-btn { font-size: 0; width: 30px; padding-inline: 6px; }
-  .open-ide-btn::after { content: "IDE"; font-size: 10px; }
   .status-chip .status-text { max-width: 86px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .composer-wrap { padding-inline: 12px; }
 }
 
-/* Phase B1 session tabs — conversation tabs only (not agent processes) */
+/* Session state host — tab rail hidden; sidebar project/chat list is the switcher. */
 .session-tabs {
   flex: 0 0 auto; border-bottom: 1px solid var(--line-soft);
   padding: 0 10px 0; background: var(--bg);
@@ -1325,9 +1323,10 @@ body.resizing button { user-select: auto !important; cursor: inherit; }
 .status-chip[data-state="error"] .dot { background: var(--text); }
 @keyframes blink { 50% { opacity: .35; } }
 .open-ide-btn {
-  display: inline-flex; align-items: center; padding: 5px 10px; border-radius: var(--radius);
+  display: inline-flex; align-items: center; justify-content: center; padding: 5px 10px; border-radius: var(--radius);
   background: transparent; border: 1px solid transparent; color: var(--text-2); font-size: 12px; font-weight: 500;
   transition: background .12s, color .12s, border-color .12s;
+  white-space: nowrap;
 }
 .open-ide-btn:hover { background: var(--hover); color: var(--text); border-color: var(--chip-border); }
 .mono-path {
@@ -2943,3 +2942,54 @@ html[data-compact="on"] .step { font-size: 12px; }
 [data-theme="light"] .splitter.dragging::after {
   background: rgba(0, 0, 0, 0.08);
 }
+
+/* Responsive compact & icon-only modes for narrow / small screens */
+@media (max-width: 1040px) {
+  .open-ide-btn {
+    font-size: 11px;
+    padding: 4px 8px;
+  }
+}
+
+@media (max-width: 860px) {
+  .open-ide-btn {
+    font-size: 0 !important;
+    width: 32px;
+    min-width: 32px;
+    padding: 0 4px;
+  }
+  .open-ide-btn::after {
+    content: "IDE";
+    font-size: 10px;
+    font-weight: 700;
+  }
+  .composer-toolbar {
+    flex-wrap: nowrap;
+    gap: 4px;
+  }
+  .composer-left {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    scrollbar-width: none;
+    gap: 2px;
+  }
+  .composer-left::-webkit-scrollbar {
+    display: none;
+  }
+  .composer-left .chip-dd {
+    flex: 0 0 auto;
+    max-width: none;
+  }
+  .composer-left .chip-btn {
+    padding: 0 6px;
+    gap: 0;
+    width: 28px;
+    min-width: 28px;
+    justify-content: center;
+  }
+  .composer-left .chip-btn .chip-label,
+  .composer-left .chip-btn .chip-caret {
+    display: none;
+  }
+}
+

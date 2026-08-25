@@ -495,7 +495,7 @@ try {
   fail("diffHunks", e);
 }
 
-// Session tabs: single-tab does not paint a lone "Chat" chip
+// Session tabs: in-memory cache only — the tab rail stays hidden
 try {
   const src = fs.readFileSync(
     path.join(root, "apps/desktop/renderer/lib/sessionTabs.js"),
@@ -539,13 +539,9 @@ try {
   // eslint-disable-next-line no-new-func
   new Function(src)();
   const tabRoot = new FakeEl();
-  let renameTarget = null;
   const tabs = globalThis.GrokSessionTabs.create({
     root: tabRoot,
     onActivate: () => {},
-    onRename: (tab) => {
-      renameTarget = tab;
-    },
   });
   const firstTab = tabs.getActive();
   // After ensureOne → single tab: should be empty mode (no session-tab chip)
@@ -565,9 +561,10 @@ try {
   tabs.addTab({ title: "Second", sessionId: "session-b", cwd: "D:\\projects\\beta" }, true);
   firstTab.promptQueue.push({ text: "queued for first" });
   if (tabs.getActive().promptQueue.length !== 0) throw new Error("prompt queues leaked between tabs");
-  if (tabRoot.classList.contains("session-tabs-empty")) {
-    throw new Error("expected multi-tab rail visible");
+  if (!tabRoot.classList.contains("session-tabs-empty")) {
+    throw new Error("expected session tab rail to stay hidden with multiple chats");
   }
+  if (tabRoot.children.length) throw new Error("hidden rail should not paint tab chips");
   if (tabs.getActive()?.cwd !== "D:\\projects\\beta") {
     throw new Error(`tab cwd was not retained: ${tabs.getActive()?.cwd}`);
   }
@@ -582,13 +579,9 @@ try {
   const pending = tabs.takePendingEvents(tabs.getActive().id);
   if (pending.length !== 1 || pending[0].text !== "one two") throw new Error("inactive stream coalescing");
   tabs.setBusy(tabs.activeId, true);
-  const latestRail = tabRoot.children[tabRoot.children.length - 1];
-  const activeButton = latestRail?.children?.find?.((el) => String(el.className).includes("active"));
-  const activeLabel = activeButton?.children?.find?.((el) => el.className === "session-tab-label");
-  activeLabel?.ondblclick?.({ stopPropagation() {} });
-  if (renameTarget !== tabs.getActive()) throw new Error("direct tab rename interaction");
+  if (!tabs.getActive()?.busy) throw new Error("busy state was not retained");
   tabs.setBusy(tabs.activeId, false);
-  ok("sessionTabs cache + slot runtime + rename");
+  ok("sessionTabs cache + slot runtime (rail hidden; sidebar switches)");
 } catch (e) {
   fail("sessionTabs UI", e);
 }
@@ -607,6 +600,9 @@ try {
   const binder = appSrc.slice(binderStart, sendStart);
   if (!/spawnAgentSlot/.test(binder) || !/slotIsRunning/.test(binder)) {
     throw new Error("concurrent tab slot guard missing");
+  }
+  if (!/slotMatchesTabWorkspace/.test(binder)) {
+    throw new Error("send-time slot reuse ignores the tab project cwd");
   }
   if (!/await ensureActiveTabAgent\(\)/.test(appSrc.slice(sendStart))) {
     throw new Error("send-time agent binding missing");
@@ -629,6 +625,27 @@ try {
   ok("tab/sidebar activation cache-only + send-time slot binding");
 } catch (e) {
   fail("tab runtime regression", e);
+}
+
+try {
+  const mainSrc = fs.readFileSync(path.join(root, "apps/desktop/src/main.cjs"), "utf8");
+  const listStart = mainSrc.indexOf('ipcMain.handle("fs:listDir"');
+  const listEnd = mainSrc.indexOf("ipcMain.handle(", listStart + 10);
+  const listDir = mainSrc.slice(listStart, listEnd);
+  if (listStart < 0 || listEnd < 0) throw new Error("fs:listDir handler missing");
+  if (!/function explorerPathContext/.test(mainSrc)) throw new Error("explorerPathContext missing");
+  if (!/guardedExplorerPath/.test(listDir)) throw new Error("fs:listDir still uses the agent workspace");
+  const appSrc = fs.readFileSync(path.join(root, "apps/desktop/renderer/app.js"), "utf8");
+  const refreshStart = appSrc.indexOf("async function refreshFileTree");
+  const refreshEnd = appSrc.indexOf("function switchPanel", refreshStart);
+  const refresh = appSrc.slice(refreshStart, refreshEnd);
+  if (!/explorerListError/.test(refresh)) throw new Error("project files retry does not unwrap listDir errors");
+  if (!/refreshFileTree\(workspaceRoot \|\| targetRoot\)/.test(refresh)) {
+    throw new Error("Retry does not list the live sidebar project");
+  }
+  ok("project files listDir uses sidebar workspace + Retry");
+} catch (e) {
+  fail("project files explorer", e);
 }
 
 // Agent slots UI: hide when only primary

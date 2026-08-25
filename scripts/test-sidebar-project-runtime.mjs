@@ -123,14 +123,13 @@ try {
   await page.getByTitle(projectB, { exact: true }).click();
   await page.waitForFunction((cwd) => document.querySelector("#workspaceLabel")?.textContent === cwd, projectB);
   const afterProjectSwitch = await page.evaluate(() => ({
-    tabs: Array.from(document.querySelectorAll(".session-tab")).map((tab) => ({
-      label: tab.querySelector(".session-tab-label")?.textContent || "",
-      active: tab.classList.contains("active"),
-      busy: tab.dataset.busy,
-    })),
+    tabChips: document.querySelectorAll(".session-tab").length,
+    railHidden: document.querySelector("#sessionTabs")?.classList.contains("session-tabs-empty"),
+    activeProject: document.querySelector(".project-item.active")?.getAttribute("title") || "",
   }));
-  assert.equal(afterProjectSwitch.tabs.length, 2);
-  assert.equal(afterProjectSwitch.tabs.filter((tab) => tab.busy === "true").length, 1);
+  assert.equal(afterProjectSwitch.tabChips, 0);
+  assert.equal(afterProjectSwitch.railHidden, true);
+  assert.equal(afterProjectSwitch.activeProject, projectB);
 
   let calls = await electronApp.evaluate(() => globalThis.__sidebarRuntimeCalls);
   assert.deepEqual(calls.connect, []);
@@ -155,7 +154,8 @@ try {
   await page.locator(".project-chat-item").filter({ hasText: sessionTitle }).first().click();
   await page.waitForFunction((text) => document.querySelector("#messages")?.textContent?.includes(text), "Nội dung beta đã lưu.");
   assert.equal(await page.locator("#workspaceLabel").textContent(), projectB);
-  assert.equal(await page.locator(".session-tab").count(), 2);
+  assert.equal(await page.locator(".session-tab").count(), 0);
+  assert.equal(await page.locator("#sessionTabs").evaluate((el) => el.classList.contains("session-tabs-empty")), true);
 
   const markerTwo = "PROJECT ALPHA BACKGROUND MARKER TWO";
   await emit({

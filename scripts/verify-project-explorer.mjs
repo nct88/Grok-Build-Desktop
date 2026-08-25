@@ -192,15 +192,40 @@ try {
     await globalThis.grokBuild.setTheme("dark");
     document.documentElement.dataset.theme = "dark";
   });
-  await electronApp.evaluate(({ ipcMain }) => {
+  await electronApp.evaluate(({ ipcMain }, fixtureDir) => {
+    const fs = process.getBuiltinModule("fs");
+    const path = process.getBuiltinModule("path");
+    let failOnce = true;
     ipcMain.removeHandler("fs:listDir");
-    ipcMain.handle("fs:listDir", async () => { throw new Error("Fixture directory unavailable"); });
-  });
+    ipcMain.handle("fs:listDir", async (_e, dirPath) => {
+      if (failOnce) {
+        failOnce = false;
+        throw new Error("Fixture directory unavailable");
+      }
+      const base = String(dirPath || fixtureDir);
+      const resolved = path.resolve(base);
+      const root = path.resolve(fixtureDir);
+      const prefix = root.endsWith(path.sep) ? root : root + path.sep;
+      if (resolved !== root && !resolved.startsWith(prefix)) {
+        throw new Error("Path outside workspace is not allowed.");
+      }
+      return fs.readdirSync(resolved, { withFileTypes: true })
+        .filter((entry) => !entry.isSymbolicLink())
+        .map((entry) => ({
+          name: entry.name,
+          path: path.join(resolved, entry.name),
+          isDirectory: entry.isDirectory(),
+        }));
+    });
+  }, fixtureRoot);
   await page.locator("#btnRefreshFiles").click();
   await page.waitForSelector("#fileTree .explorer-state.error");
   assert.match(await page.locator("#fileTree .explorer-state.error").textContent(), /Fixture directory unavailable/);
   assert.equal(await page.locator("#fileTree .explorer-retry").count(), 1);
   await page.screenshot({ path: path.join(evidenceDir, "project-explorer-error-dark-1440x900.png") });
+  await page.locator("#fileTree .explorer-retry").click();
+  await page.waitForSelector("#fileTree .explorer-row");
+  assert.equal(await page.locator("#fileTree .explorer-state.error").count(), 0);
 
   assert.deepEqual(runtimeErrors, [], `renderer errors: ${runtimeErrors.join(" | ")}`);
   console.log(

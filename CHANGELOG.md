@@ -2,6 +2,18 @@
 
 Public, versioned changes for Grok Build Desktop.
 
+## Unreleased
+
+- New chats from the left sidebar bind to the selected project folder. A warm agent still connected to another project no longer stores the conversation under that other cwd.
+- Project Files lists the sidebar-selected folder even when the agent is still connected to another project. Retry reloads that folder instead of repeating the outside-workspace error.
+
+## 0.5.46 — 2026-08-25
+
+- Hid the session tab rail. Project folders and nested chats in the left sidebar are the session switcher.
+- New chats start from the sidebar **New chat** button. Running tasks keep their slot, queue and background content when switching projects.
+
+Release details are maintained in `docs/releases/0.5.46.md`.
+
 ## 0.5.45 — 2026-08-24
 
 - Renamed the Windows desktop shortcut to "Grok Build Desktop" in installer and portable scripts for clearer identification.
