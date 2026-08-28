@@ -10,7 +10,6 @@ dist/
 /docs/social/
 /docs/marketing/
 /docs/archive/
-/fix-bug/
 /AGENTS.md
 packages/*/dist/
 apps/desktop/out/

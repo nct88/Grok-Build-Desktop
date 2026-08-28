@@ -492,9 +492,13 @@ class AgentSupervisor {
 
   setPermissionMode(mode, slotId) {
     const normalized = normalizePermissionMode(mode);
-    const s = slotId ? this.slots.get(slotId) : this.active();
-    if (s) {
-      s.connectOptions = { ...s.connectOptions, permissionMode: normalized };
+    if (slotId) {
+      const s = this.slots.get(slotId);
+      if (s) s.connectOptions = { ...s.connectOptions, permissionMode: normalized };
+    } else {
+      for (const slot of this.slots.values()) {
+        slot.connectOptions = { ...slot.connectOptions, permissionMode: normalized };
+      }
     }
     return { ok: true, permissionMode: normalized };
   }
