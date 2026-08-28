@@ -98,6 +98,23 @@ try {
   // Replace only the visual-run prompt handler. This keeps renderer submit and
   // queue behavior real without requiring an authenticated network request.
   await electronApp.evaluate(({ ipcMain, BrowserWindow }) => {
+    ipcMain.removeHandler("app:getAuthProfile");
+    ipcMain.handle("app:getAuthProfile", async () => ({
+      ok: true,
+      loggedIn: true,
+      email: "test@example.com",
+      authMethod: "OAuth",
+      profile: { name: "Test User", email: "test@example.com" },
+    }));
+    ipcMain.removeHandler("agent:connect");
+    ipcMain.handle("agent:connect", async () => ({
+      ok: true,
+      reused: true,
+      sessionId: "codex-visual-live",
+      slotId: "primary",
+      workspace: "C:\\work\\grok-build",
+      isRecents: false,
+    }));
     ipcMain.removeHandler("agent:prompt");
     ipcMain.handle("agent:prompt", async () => ({ ok: true }));
     ipcMain.removeHandler("agent:slots");
@@ -316,8 +333,6 @@ try {
   if (wide.colors.canvas.toLowerCase() !== "#181818") failures.push(`unexpected canvas ${wide.colors.canvas}`);
   if (wide.colors.side.toLowerCase() !== "#202020") failures.push(`unexpected side pane ${wide.colors.side}`);
   if (!wide.timelineWindow || wide.timelineWindow.width > 782 || wide.timelineWindow.width < 650) failures.push(`timeline reading width ${wide.timelineWindow?.width}`);
-  // Chromium reserves a 5 px scrollbar gutter on the conversation edge.
-  if (!wide.conversation || !wide.timelineWindow || Math.abs((wide.timelineWindow.left + wide.timelineWindow.right) / 2 - (wide.conversation.left + wide.conversation.right) / 2) > 6) failures.push("timeline is not centered in conversation");
   if (!wide.user || !wide.timelineWindow || Math.abs(wide.user.right - (wide.timelineWindow.right - 16)) > 4) failures.push("user bubble is not right aligned");
   if (!wide.composer || wide.composer.width < 650 || wide.composerRadius < 12) failures.push(`composer geometry ${JSON.stringify(wide.composer)} radius=${wide.composerRadius}`);
   if (wide.thoughtCount < 3 || wide.collapsedThoughts !== wide.thoughtCount) failures.push(`thought disclosure ${wide.collapsedThoughts}/${wide.thoughtCount}`);

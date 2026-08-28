@@ -14,7 +14,10 @@ export interface NodeFsHostOptions {
 }
 
 function isInsideRoot(resolved: string, root: string): boolean {
-  const rel = path.relative(path.resolve(root), resolved);
+  if (!root) return false;
+  const normResolved = process.platform === "win32" ? path.resolve(resolved).toLowerCase() : path.resolve(resolved);
+  const normRoot = process.platform === "win32" ? path.resolve(root).toLowerCase() : path.resolve(root);
+  const rel = path.relative(normRoot, normResolved);
   return !rel.startsWith("..") && !path.isAbsolute(rel);
 }
 

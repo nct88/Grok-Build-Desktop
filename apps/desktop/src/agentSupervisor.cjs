@@ -490,6 +490,15 @@ class AgentSupervisor {
     return { ok: true };
   }
 
+  setPermissionMode(mode, slotId) {
+    const normalized = normalizePermissionMode(mode);
+    const s = slotId ? this.slots.get(slotId) : this.active();
+    if (s) {
+      s.connectOptions = { ...s.connectOptions, permissionMode: normalized };
+    }
+    return { ok: true, permissionMode: normalized };
+  }
+
   /**
    * Build permission request handler for a slot's FS host.
    * @param {AgentSlot} slot
@@ -497,15 +506,16 @@ class AgentSupervisor {
    */
   createPermissionHandler(slot, mode) {
     return async (request) => {
+      const currentMode = normalizePermissionMode(slot.connectOptions?.permissionMode || mode);
       const optionsList = request.options || [];
-      if (mode === "bypassPermissions" || mode === "dontAsk" || mode === "auto") {
+      if (currentMode === "bypassPermissions" || currentMode === "dontAsk" || currentMode === "auto") {
         const allow =
           optionsList.find((o) => /allow|accept|yes|always/i.test(`${o.optionId} ${o.name}`)) ||
           optionsList[0];
         if (!allow) return { outcome: { outcome: "cancelled" } };
         return { outcome: { outcome: "selected", optionId: allow.optionId } };
       }
-      if (mode === "acceptEdits") {
+      if (currentMode === "acceptEdits") {
         const kind = request.toolCall?.kind || "";
         if (!kind || /edit|write|read|search/i.test(kind)) {
           const allow =

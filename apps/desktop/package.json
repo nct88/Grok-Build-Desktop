@@ -1,6 +1,6 @@
 {
     "name":  "@grok-build/desktop",
-    "version":  "0.5.46",
+    "version":  "0.5.47",
     "private":  true,
     "description":  "Grok Build Desktop — thin Electron shell over grok agent stdio (not Grok Build IDE)",
     "main":  "src/main.cjs",

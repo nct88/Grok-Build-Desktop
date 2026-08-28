@@ -407,11 +407,21 @@ async function openIdeApp(opts) {
  * @param {string} mode
  */
 function connectAgentHost(acp, slot, mode) {
-  const sup = getSupervisor();
+  const isFullAccess =
+    mode === "bypassPermissions" ||
+    mode === "dontAsk" ||
+    mode === "auto" ||
+    slot.connectOptions.permissionMode === "bypassPermissions" ||
+    slot.connectOptions.permissionMode === "dontAsk" ||
+    slot.connectOptions.permissionMode === "auto";
   const fsHost = acp.createNodeFsHost({
     workspaceRoot: slot.workspace,
     extraRoots: sanitizeExtraRoots(slot.connectOptions.extraRoots, slot.workspace),
-    allowOutside: Boolean(slot.connectOptions.allowOutside),
+    allowOutside: Boolean(
+      slot.connectOptions.allowOutside ||
+      isFullAccess ||
+      isRecentsWorkspace(slot.workspace)
+    ),
     requestPermission: sup.createPermissionHandler(slot, mode),
     onFileWrite(change) {
       send("agent:event", {
@@ -2951,6 +2961,13 @@ app.whenReady().then(() => {
     if (!client) throw new Error("Not connected.");
     await client.setSessionMode(String(modeId));
     return { ok: true };
+  });
+
+  ipcMain.handle("agent:setPermissionMode", async (_e, mode) => {
+    const normalized = normalizePermissionMode(mode);
+    saveState({ permissionMode: normalized });
+    getSupervisor().setPermissionMode(normalized);
+    return { ok: true, permissionMode: normalized };
   });
 
   ipcMain.handle("app:saveExport", async (_e, markdown, defaultName) => {

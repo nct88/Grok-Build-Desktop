@@ -4,8 +4,14 @@ Public, versioned changes for Grok Build Desktop.
 
 ## Unreleased
 
-- New chats from the left sidebar bind to the selected project folder. A warm agent still connected to another project no longer stores the conversation under that other cwd.
-- Project Files lists the sidebar-selected folder even when the agent is still connected to another project. Retry reloads that folder instead of repeating the outside-workspace error.
+## 0.5.47 — 2026-08-28
+
+- Added real-time permission sync via `agent:setPermissionMode` IPC channel.
+- Automatically allowed outside filesystem writes and auto-approved tool calls when Full Access (`bypassPermissions`) is active.
+- Automatically switched from `plan` mode to `build` mode when granting edit permissions so the agent directly edits files.
+- Fixed Windows path normalization and drive letter casing in `nodeFsHost`.
+
+Release details are maintained in `docs/releases/0.5.47.md`.
 
 ## 0.5.46 — 2026-08-25
 

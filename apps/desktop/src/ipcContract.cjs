@@ -42,6 +42,7 @@ const INVOKE_CHANNELS = [
   "agent:newSession",
   "agent:setSessionConfig",
   "agent:setSessionMode",
+  "agent:setPermissionMode",
   "agent:listSessions",
   "agent:loadSession",
   "agent:deleteSession",

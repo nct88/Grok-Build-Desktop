@@ -48,6 +48,7 @@ contextBridge.exposeInMainWorld("grokBuild", {
   setSessionConfig: (configId, value) =>
     ipcRenderer.invoke("agent:setSessionConfig", configId, value),
   setSessionMode: (modeId) => ipcRenderer.invoke("agent:setSessionMode", modeId),
+  setPermissionMode: (mode) => ipcRenderer.invoke("agent:setPermissionMode", mode),
   listSessions: (cwd) => ipcRenderer.invoke("agent:listSessions", cwd),
   moveSession: (sessionId, targetWorkspace) =>
     ipcRenderer.invoke("agent:moveSession", sessionId, targetWorkspace ?? ""),

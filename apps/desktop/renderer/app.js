@@ -4062,6 +4062,13 @@
     selPermission.value = mode;
     saveLayout({ permissionMode: mode });
     syncPermissionChip();
+    void api.setPermissionMode?.(mode);
+    if (mode !== "plan" && selMode && selMode.value === "plan") {
+      const nonPlan = [...selMode.options].find((o) => o.value && o.value !== "plan");
+      if (nonPlan) {
+        setModeValue(nonPlan.value);
+      }
+    }
   }
 
   function setModelValue(v) {
