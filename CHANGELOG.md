@@ -4,6 +4,12 @@ Public, versioned changes for Grok Build Desktop.
 
 ## Unreleased
 
+## 0.5.48 — 2026-08-28
+
+- Fixed `ReferenceError: sup is not defined` in `connectAgentHost` during `agent:connect`.
+
+Release details are maintained in `docs/releases/0.5.48.md`.
+
 ## 0.5.47 — 2026-08-28
 
 - Added real-time permission sync via `agent:setPermissionMode` IPC channel.

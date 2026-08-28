@@ -106,15 +106,6 @@ try {
       authMethod: "OAuth",
       profile: { name: "Test User", email: "test@example.com" },
     }));
-    ipcMain.removeHandler("agent:connect");
-    ipcMain.handle("agent:connect", async () => ({
-      ok: true,
-      reused: true,
-      sessionId: "codex-visual-live",
-      slotId: "primary",
-      workspace: "C:\\work\\grok-build",
-      isRecents: false,
-    }));
     ipcMain.removeHandler("agent:prompt");
     ipcMain.handle("agent:prompt", async () => ({ ok: true }));
     ipcMain.removeHandler("agent:slots");

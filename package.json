@@ -1,53 +1,53 @@
 {
-  "name": "grok-build",
-  "version": "0.5.47",
-  "private": true,
-  "description": "Grok Build Desktop — Electron agent app over official Grok CLI (ACP). Not Grok Build IDE.",
-  "workspaces": [
-    "packages/*",
-    "apps/*"
-  ],
-  "scripts": {
-    "build:acp": "npm run build -w @grok-build/acp-client",
-    "build:sessions": "npm run build -w @grok-build/sessions",
-    "build": "npm run build:acp && npm run build:sessions",
-    "electron:install": "node node_modules/electron/install.js",
-    "icons": "npm run electron:install && node apps/desktop/build/generate-icon.mjs && node apps/desktop/build/stamp-dev-electron-icon.cjs",
-    "icons:stamp-dev": "node apps/desktop/build/stamp-dev-electron-icon.cjs",
-    "icons:apply": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/apply-app-icon.ps1",
-    "desktop": "npm run electron:install && npm run icons:stamp-dev && npm run build && npm run start -w @grok-build/desktop",
-    "start": "npm run desktop",
-    "dist:desktop": "npm run icons && npm run build && npm run dist -w @grok-build/desktop",
-    "release": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/publish-release.ps1",
-    "release:github": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/publish-github-release.ps1",
-    "release:r2": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/deploy-r2.ps1",
-    "portable": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/run-portable.ps1",
-    "portable:shortcut": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/run-portable.ps1 -Shortcut",
-    "check:arch": "node scripts/check-architecture.mjs",
-    "check:packaging": "node scripts/check-packaging.mjs",
-    "check:brand": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/check-brand-assets.ps1",
-    "check:release": "node scripts/check-release-contract.mjs",
-    "check:visual": "node scripts/verify-desktop-layout.mjs && node scripts/verify-slash-menu.mjs && node scripts/verify-codex-session-ui.mjs && node scripts/verify-session-tabs.mjs && node scripts/verify-project-explorer.mjs && node scripts/verify-resizable-panes.mjs",
-    "test": "npm run build && node scripts/test-slash-commands.mjs && node scripts/test-syntax-highlight.mjs && node scripts/test-session-move.mjs && node scripts/test-session-context.mjs && node scripts/test-project-session-sync-ui.mjs && node scripts/test-sidebar-project-runtime.mjs && node scripts/e2e-desktop.mjs",
-    "test:live": "node scripts/e2e-desktop.mjs",
-    "check": "npm run check:arch && npm run check:packaging && npm run check:brand && npm run check:release && npm test && npm run check:visual"
-  },
-  "devDependencies": {
-    "playwright": "^1.62.1"
-  },
-  "repository": {
-    "type": "git",
-    "url": "https://github.com/nct88/Grok-Build-Desktop.git"
-  },
-  "homepage": "https://github.com/nct88/Grok-Build-Desktop#readme",
-  "bugs": {
-    "url": "https://github.com/nct88/Grok-Build-Desktop/issues"
-  },
-  "engines": {
-    "node": ">=20"
-  },
-  "allowScripts": {
-    "esbuild@0.25.12": true,
-    "electron-winstaller@5.4.0": true
-  }
+    "name":  "grok-build",
+    "version":  "0.5.48",
+    "private":  true,
+    "description":  "Grok Build Desktop — Electron agent app over official Grok CLI (ACP). Not Grok Build IDE.",
+    "workspaces":  [
+                       "packages/*",
+                       "apps/*"
+                   ],
+    "scripts":  {
+                    "build:acp":  "npm run build -w @grok-build/acp-client",
+                    "build:sessions":  "npm run build -w @grok-build/sessions",
+                    "build":  "npm run build:acp \u0026\u0026 npm run build:sessions",
+                    "electron:install":  "node node_modules/electron/install.js",
+                    "icons":  "npm run electron:install \u0026\u0026 node apps/desktop/build/generate-icon.mjs \u0026\u0026 node apps/desktop/build/stamp-dev-electron-icon.cjs",
+                    "icons:stamp-dev":  "node apps/desktop/build/stamp-dev-electron-icon.cjs",
+                    "icons:apply":  "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/apply-app-icon.ps1",
+                    "desktop":  "npm run electron:install \u0026\u0026 npm run icons:stamp-dev \u0026\u0026 npm run build \u0026\u0026 npm run start -w @grok-build/desktop",
+                    "start":  "npm run desktop",
+                    "dist:desktop":  "npm run icons \u0026\u0026 npm run build \u0026\u0026 npm run dist -w @grok-build/desktop",
+                    "release":  "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/publish-release.ps1",
+                    "release:github":  "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/publish-github-release.ps1",
+                    "release:r2":  "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/deploy-r2.ps1",
+                    "portable":  "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/run-portable.ps1",
+                    "portable:shortcut":  "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/run-portable.ps1 -Shortcut",
+                    "check:arch":  "node scripts/check-architecture.mjs",
+                    "check:packaging":  "node scripts/check-packaging.mjs",
+                    "check:brand":  "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/check-brand-assets.ps1",
+                    "check:release":  "node scripts/check-release-contract.mjs",
+                    "check:visual":  "node scripts/verify-desktop-layout.mjs \u0026\u0026 node scripts/verify-slash-menu.mjs \u0026\u0026 node scripts/verify-codex-session-ui.mjs \u0026\u0026 node scripts/verify-session-tabs.mjs \u0026\u0026 node scripts/verify-project-explorer.mjs \u0026\u0026 node scripts/verify-resizable-panes.mjs",
+                    "test":  "npm run build \u0026\u0026 node scripts/test-slash-commands.mjs \u0026\u0026 node scripts/test-syntax-highlight.mjs \u0026\u0026 node scripts/test-session-move.mjs \u0026\u0026 node scripts/test-session-context.mjs \u0026\u0026 node scripts/test-project-session-sync-ui.mjs \u0026\u0026 node scripts/test-sidebar-project-runtime.mjs \u0026\u0026 node scripts/e2e-desktop.mjs",
+                    "test:live":  "node scripts/e2e-desktop.mjs",
+                    "check":  "npm run check:arch \u0026\u0026 npm run check:packaging \u0026\u0026 npm run check:brand \u0026\u0026 npm run check:release \u0026\u0026 npm test \u0026\u0026 npm run check:visual"
+                },
+    "devDependencies":  {
+                            "playwright":  "^1.62.1"
+                        },
+    "repository":  {
+                       "type":  "git",
+                       "url":  "https://github.com/nct88/Grok-Build-Desktop.git"
+                   },
+    "homepage":  "https://github.com/nct88/Grok-Build-Desktop#readme",
+    "bugs":  {
+                 "url":  "https://github.com/nct88/Grok-Build-Desktop/issues"
+             },
+    "engines":  {
+                    "node":  "\u003e=20"
+                },
+    "allowScripts":  {
+                         "esbuild@0.25.12":  true,
+                         "electron-winstaller@5.4.0":  true
+                     }
 }

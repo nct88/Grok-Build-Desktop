@@ -407,6 +407,7 @@ async function openIdeApp(opts) {
  * @param {string} mode
  */
 function connectAgentHost(acp, slot, mode) {
+  const sup = getSupervisor();
   const isFullAccess =
     mode === "bypassPermissions" ||
     mode === "dontAsk" ||
