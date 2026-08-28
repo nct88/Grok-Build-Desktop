@@ -507,6 +507,10 @@
       // Settings form
       about: "About",
       checkUpdates: "Check for updates",
+      appUpToDate: "Grok Build is up to date ({version})",
+      appUpdateAvailable: "Grok Build {latest} is available (you have {current})",
+      updateCheckFailed: "Update check failed",
+      download: "Download",
       checkCliUpdates: "Check CLI updates",
       updateCli: "Update Grok CLI",
       cliVersion: "Grok CLI",
@@ -1052,6 +1056,10 @@
       // Settings form
       about: "Giới thiệu",
       checkUpdates: "Kiểm tra cập nhật",
+      appUpToDate: "Grok Build đã là bản mới nhất ({version})",
+      appUpdateAvailable: "Đã có bản Grok Build {latest} (bạn đang dùng {current})",
+      updateCheckFailed: "Kiểm tra cập nhật thất bại",
+      download: "Tải về",
       checkCliUpdates: "Kiểm tra cập nhật CLI",
       updateCli: "Cập nhật Grok CLI",
       cliVersion: "Grok CLI",

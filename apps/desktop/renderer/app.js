@@ -5812,40 +5812,62 @@
   }
 
   async function checkUpdates(opts = {}) {
-    // P2: empty URL → main tries local dist/latest.json
     const url = $("inpUpdateUrl")?.value?.trim() || bootstrap?.updateUrl || "";
     const banner = $("updateBanner");
     const quiet = Boolean(opts.quiet); // bootstrap: only show when update available
+    const btn = $("btnCheckUpdate");
+    const manual = Boolean(opts.manual || (!quiet && btn));
+    if (manual && btn) {
+      btn.disabled = true;
+    }
     try {
       const res = await api.checkUpdate(url);
       if (!banner) {
-        if (!quiet) addStep(res.message || "Update check done");
+        if (!quiet || manual) addStep(res?.message || "Update check done");
         return res;
       }
       // Don't spam account footer with JSON/parse noise or "up to date" on every launch
-      if (!res.ok) {
+      if (!res || !res.ok) {
+        const errMsg = res?.message || tt("updateCheckFailed", "Update check failed");
         if (quiet) {
           banner.classList.add("hidden");
           banner.textContent = "";
         } else {
           banner.classList.remove("hidden");
-          banner.textContent = res.message || "Update check failed";
+          banner.textContent = errMsg;
+          addStep(errMsg);
         }
         return res;
       }
       if (res.update && res.url) {
+        const msg =
+          tt("appUpdateAvailable", "Grok Build {latest} is available (you have {current})")
+            .replace("{latest}", res.latest || "")
+            .replace("{current}", res.current || "") || res.message;
+        const dlLabel = tt("download", "Download");
         banner.classList.remove("hidden");
-        banner.innerHTML = `${escapeHtml(res.message)} · <a href="#" id="updLink">Download</a>`;
+        banner.innerHTML = `${escapeHtml(msg)} · <a href="#" id="updLink">${escapeHtml(dlLabel)}</a>`;
         $("updLink")?.addEventListener("click", (e) => {
           e.preventDefault();
           void api.openExternal(res.url);
         });
+        if (manual) {
+          addStep(`${msg} · ${res.url}`);
+        }
       } else if (quiet) {
         banner.classList.add("hidden");
         banner.textContent = "";
       } else {
+        const upToDateMsg =
+          tt("appUpToDate", "Grok Build is up to date ({version})").replace(
+            "{version}",
+            res.current || "",
+          ) || res.message || "App is up to date";
         banner.classList.remove("hidden");
-        banner.textContent = res.message || "No updates";
+        banner.textContent = upToDateMsg;
+        if (manual) {
+          addStep(upToDateMsg);
+        }
       }
       return res;
     } catch (e) {
@@ -5858,7 +5880,12 @@
           banner.textContent = e.message || String(e);
         }
       }
+      if (manual) {
+        addStep(e.message || String(e));
+      }
       return null;
+    } finally {
+      if (btn) btn.disabled = false;
     }
   }
 

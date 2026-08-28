@@ -2055,8 +2055,64 @@ app.whenReady().then(() => {
     return 0;
   }
 
+  const DEFAULT_UPDATE_FEED_URL =
+    "https://api.github.com/repos/nct88/Grok-Build-Desktop/releases/latest";
+
   function parseUpdateFeedData(data, current) {
-    const latest = String(data.version || data.latest || "").trim();
+    if (!data || typeof data !== "object") {
+      return { ok: false, current, update: false, message: "Invalid feed data." };
+    }
+
+    // 1. GitHub Releases API format
+    if (data.tag_name || (Array.isArray(data.assets) && data.html_url)) {
+      const rawTag = String(data.tag_name || data.name || "").trim();
+      const latest = rawTag.replace(/^v/i, "").trim();
+      if (!latest) {
+        return { ok: true, current, update: false, message: "Release has no tag_name." };
+      }
+
+      let download = "";
+      if (Array.isArray(data.assets) && data.assets.length > 0) {
+        const setupAsset = data.assets.find(
+          (a) => a.name && /setup.*\.exe$/i.test(a.name) && !/portable/i.test(a.name),
+        );
+        const portableExeAsset = data.assets.find(
+          (a) => a.name && /portable.*\.exe$/i.test(a.name),
+        );
+        const zipAsset = data.assets.find((a) => a.name && /\.zip$/i.test(a.name));
+        const exeAsset = data.assets.find((a) => a.name && /\.exe$/i.test(a.name));
+        const chosen = setupAsset || portableExeAsset || exeAsset || zipAsset;
+        if (chosen && chosen.browser_download_url) {
+          download = chosen.browser_download_url;
+        }
+      }
+      if (!download) {
+        download =
+          data.html_url ||
+          `https://github.com/nct88/Grok-Build-Desktop/releases/tag/${rawTag}`;
+      }
+
+      const notes = String(data.body || data.notes || "");
+      const newer = compareSemver(latest, current) > 0;
+      return {
+        ok: true,
+        current,
+        latest,
+        update: newer,
+        url: download,
+        releaseUrl:
+          data.html_url ||
+          `https://github.com/nct88/Grok-Build-Desktop/releases/tag/${rawTag}`,
+        notes,
+        publishedAt: data.published_at || "",
+        message: newer
+          ? `Update available: ${latest} (you have ${current})`
+          : `Up to date (${current})`,
+      };
+    }
+
+    // 2. Standard latest.json / custom CDN / R2 format
+    const latest = String(data.version || data.latest || "").replace(/^v/i, "").trim();
     const download = data.url || data.downloadUrl || data.href || data.path || "";
     const notes = data.notes || data.changelog || "";
     if (!latest) {
@@ -2077,35 +2133,28 @@ app.whenReady().then(() => {
   }
 
   ipcMain.handle("app:checkUpdate", async (_e, feedUrl) => {
-    const url = String(feedUrl || loadState().updateUrl || "").trim();
+    let url = String(feedUrl || loadState().updateUrl || "").trim();
     const current = app.getVersion() || "0.5.0";
-    // P2: fall back to local dist/latest.json when no remote feed
+    let isDefaultFeed = false;
+
+    // If no feed URL configured, check local dev feed first, then default to GitHub Releases API
     if (!url) {
       const local = resolveLocalUpdateFeedPath();
       if (local) {
         try {
           const data = readJsonFile(local);
           const parsed = parseUpdateFeedData(data, current);
-          return { ...parsed, source: "local", feedPath: local };
-        } catch (e) {
-          return {
-            ok: false,
-            current,
-            update: false,
-            message: e instanceof Error ? e.message : String(e),
-            source: "local",
-          };
+          if (parsed.update) {
+            return { ...parsed, source: "local", feedPath: local };
+          }
+        } catch {
+          // ignore local fallback error and proceed to remote
         }
       }
-      return {
-        ok: true,
-        current,
-        update: false,
-        message:
-          "No update feed configured. Set Update feed URL in Settings, or publish dist/latest.json.",
-        source: "none",
-      };
+      url = DEFAULT_UPDATE_FEED_URL;
+      isDefaultFeed = true;
     }
+
     try {
       // file:// or absolute path
       if (/^[a-zA-Z]:[\\/]/.test(url) || url.startsWith("\\\\") || url.startsWith("file:")) {
@@ -2115,12 +2164,28 @@ app.whenReady().then(() => {
         const data = readJsonFile(filePath);
         return { ...parseUpdateFeedData(data, current), source: "file" };
       }
-      const res = await fetch(url, { headers: { Accept: "application/json" } });
+      const res = await fetch(url, {
+        headers: {
+          Accept: "application/json",
+          "User-Agent": `Grok-Build-Desktop/${current}`,
+        },
+      });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const text = stripBom(await res.text());
       const data = JSON.parse(text);
-      return { ...parseUpdateFeedData(data, current), source: "remote" };
+      return { ...parseUpdateFeedData(data, current), source: isDefaultFeed ? "github" : "remote" };
     } catch (e) {
+      if (isDefaultFeed) {
+        const local = resolveLocalUpdateFeedPath();
+        if (local) {
+          try {
+            const data = readJsonFile(local);
+            return { ...parseUpdateFeedData(data, current), source: "local", feedPath: local };
+          } catch {
+            // ignore
+          }
+        }
+      }
       return {
         ok: false,
         current,
