@@ -4,6 +4,14 @@ Public, versioned changes for Grok Build Desktop.
 
 ## Unreleased
 
+## 0.5.49 — 2026-08-29
+
+- Align permission handling with Grok CLI 1.0.13: `dontAsk` stays deny-by-default, Auto only approves safe tool kinds, and `PreToolUse` hook asks stay interactive.
+- Forward Grok permission hook metadata and exact options to Desktop confirmation cards.
+- Prevent resumed sessions from creating a second worktree and terminate the full Grok process tree on disconnect.
+
+Release details are maintained in `docs/releases/0.5.49.md`.
+
 ## 0.5.48 — 2026-08-28
 
 - Fixed `ReferenceError: sup is not defined` in `connectAgentHost` during `agent:connect`.

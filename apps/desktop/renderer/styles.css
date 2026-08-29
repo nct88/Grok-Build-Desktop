@@ -1176,6 +1176,7 @@ body.resizing button { user-select: auto !important; cursor: inherit; }
 }
 .perm-title { color: var(--text); font-size: 13px; }
 .perm-kind { font-size: 11px; color: var(--text-3); }
+.perm-context { margin: -2px 0 10px; color: var(--text-3); font-size: 12px; line-height: 1.45; white-space: pre-wrap; overflow-wrap: anywhere; }
 .perm-card-actions { display: flex; flex-wrap: wrap; gap: 6px; }
 .perm-btn {
   padding: 6px 12px; border-radius: var(--radius); border: 1px solid var(--line);

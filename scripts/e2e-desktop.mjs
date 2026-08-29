@@ -305,6 +305,15 @@ try {
   });
   if (!args.includes("--model") || !args.includes("grok-4.5")) throw new Error("model arg");
   if (!args.includes("--worktree") || !args.includes("wt1")) throw new Error("worktree arg");
+  const resumedArgs = buildLaunchArgs({
+    permissionMode: "default",
+    worktree: "wt1",
+    worktreeRef: "main",
+    resumeSessionId: "session-1",
+  });
+  if (resumedArgs.includes("--worktree") || resumedArgs.includes("--worktree-ref")) {
+    throw new Error("resume must not create a nested worktree");
+  }
   const fp1 = launchFingerprint({ model: "a" });
   const fp2 = launchFingerprint({ model: "b" });
   if (fp1 === fp2) throw new Error("fingerprint should differ");
@@ -318,6 +327,17 @@ try {
   const meta = acp.sessionRequestMeta({ reasoningEffort: "xhigh" });
   if (meta.reasoningEffort !== "xhigh" || meta.reasoning_effort !== "xhigh") {
     throw new Error(JSON.stringify(meta));
+  }
+  const metaWithPermission = acp.sessionRequestMeta({
+    reasoningEffort: "max",
+    permissionMode: "bypassPermissions",
+  });
+  if (
+    metaWithPermission.reasoningEffort !== "max" ||
+    metaWithPermission.permissionMode !== "bypassPermissions" ||
+    metaWithPermission.permission_mode !== "bypassPermissions"
+  ) {
+    throw new Error(JSON.stringify(metaWithPermission));
   }
   if (acp.sessionRequestMeta({ reasoningEffort: "nope" })) throw new Error("invalid effort leaked");
   ok("ACP session/new reasoning-effort meta");
@@ -393,6 +413,47 @@ try {
     throw new Error("switching back did not preserve primary runtime");
   }
   sup.setActive(r3.slotId);
+  const permissionOptions = [
+    { optionId: "once", name: "Allow once", kind: "allow_once" },
+    { optionId: "always", name: "Always allow", kind: "allow_always" },
+    { optionId: "reject", name: "Reject", kind: "reject_once" },
+  ];
+  const autoHandler = sup.createPermissionHandler(sup.active(), "auto");
+  const autoRead = await autoHandler({
+    toolCall: { kind: "read", title: "Read file" },
+    options: permissionOptions,
+  });
+  if (autoRead.outcome.optionId !== "once") throw new Error("auto did not approve safe read");
+  const autoExecute = autoHandler({
+    toolCall: { kind: "execute", title: "Run command" },
+    options: permissionOptions,
+  });
+  await new Promise((resolve) => setTimeout(resolve, 0));
+  const autoRequest = events.at(-1)?.p;
+  if (autoRequest?.type !== "permission_request") throw new Error("auto hid execute permission");
+  sup.resolvePermission(autoRequest.requestId, "once");
+  await autoExecute;
+  const dontAsk = sup.createPermissionHandler(sup.active(), "dontAsk")({
+    toolCall: { kind: "execute", title: "Run command" },
+    options: permissionOptions,
+  });
+  await new Promise((resolve) => setTimeout(resolve, 0));
+  const dontAskRequest = events.at(-1)?.p;
+  if (dontAskRequest?.type !== "permission_request") throw new Error("dontAsk auto-approved");
+  sup.resolvePermission(dontAskRequest.requestId, "once");
+  await dontAsk;
+  const hookAsk = sup.createPermissionHandler(sup.active(), "bypassPermissions")({
+    toolCall: { kind: "execute", title: "Confirm deploy" },
+    _meta: { hookName: "PreToolUse", decision: "ask", reason: "Confirm deploy" },
+    options: permissionOptions,
+  });
+  await new Promise((resolve) => setTimeout(resolve, 0));
+  const hookRequest = events.at(-1)?.p;
+  if (hookRequest?.type !== "permission_request" || !hookRequest.hookAsk) {
+    throw new Error("hook ask was auto-approved");
+  }
+  sup.resolvePermission(hookRequest.requestId, "once");
+  await hookAsk;
   // max 2
   let threw = false;
   try {

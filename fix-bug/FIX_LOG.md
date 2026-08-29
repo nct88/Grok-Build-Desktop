@@ -1,5 +1,17 @@
 # Fix log
 
+## 2026-08-29 — Grok CLI 1.0.13 ACP host compatibility (v0.5.49)
+
+- **Target version:** 0.5.49
+- **Yêu cầu gốc / Triệu chứng (Symptom):** Desktop vẫn tự cấp quyền cho `dontAsk`/Auto và có thể bỏ qua `PreToolUse { decision: "ask" }`; resume có thể truyền lại worktree flags; dừng agent Windows chỉ kết thúc process cha.
+- **Nguyên nhân gốc rễ (Root Cause):** Permission handler gộp `bypassPermissions`, `dontAsk` và Auto thành một nhánh allow; launch args không phân biệt resume; ACP client không kết thúc process tree.
+- **Giải pháp chi tiết (Resolution):** Chỉ Full access tự duyệt toàn bộ; Auto chỉ duyệt read/search/think/fetch; `dontAsk` và hook ask luôn tạo card. Card nhận metadata hook/options; resume bỏ worktree flags; client dùng `taskkill /T` trên Windows và metadata session gửi permission mode.
+- **Danh sách file tác động:** `agentSupervisor.cjs`, `launchArgs.cjs`, `main.cjs`, renderer permission card, ACP client/process tree/session metadata, tests và release metadata 0.5.49.
+- **Kiểm chứng (Verification Proof):** `grok --version` = 1.0.13, `grok update` báo already up to date; `npm run check` pass với 30 E2E và toàn bộ visual/release gates.
+- **Bài học rút ra:** Không suy diễn `dontAsk` thành bypass permissions; mọi hook yêu cầu xác nhận phải thắng host auto-approval.
+
+---
+
 ## 2026-08-28 — Sửa lỗi `ReferenceError: sup is not defined` (v0.5.48)
 
 - **Target version:** 0.5.48

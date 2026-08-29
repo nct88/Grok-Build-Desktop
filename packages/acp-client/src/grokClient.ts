@@ -2,6 +2,7 @@ import { spawn, type ChildProcessWithoutNullStreams } from "node:child_process";
 import { EventEmitter } from "node:events";
 import { Readable, Writable } from "node:stream";
 import * as acp from "@agentclientprotocol/sdk";
+import { terminateProcessTree } from "./processTree.js";
 import { sessionRequestMeta } from "./sessionMeta.js";
 import { normalizeConfigOptions, normalizeSessionUpdate } from "./sessionUpdates.js";
 import type {
@@ -316,7 +317,7 @@ export class GrokClient {
     if (!this.connection || !this.currentSessionId) {
       return;
     }
-    await this.connection.cancel({ sessionId: this.currentSessionId });
+    await this.withTimeout(this.connection.cancel({ sessionId: this.currentSessionId }), "session/cancel");
   }
 
   async setSessionMode(modeId: string): Promise<void> {
@@ -424,23 +425,20 @@ export class GrokClient {
     }
 
     child.stdin.end();
-    if (child.exitCode === null && child.signalCode === null) {
-      child.kill();
-    }
+    await terminateProcessTree(child, false);
     await Promise.race([
       new Promise<void>((resolve) => child.once("exit", () => resolve())),
       new Promise<void>((resolve) => setTimeout(resolve, 2_000)),
     ]);
-    if (child.exitCode === null && child.signalCode === null) {
-      child.kill("SIGKILL");
-    }
+    await terminateProcessTree(child, true);
     this.process = undefined;
   }
 
-  /** Grok CLI 1.0.5+ reads reasoning effort from session/new and session/load `_meta`. */
+  /** Grok CLI 1.0.5+ reads open-session settings from session/new and session/load `_meta`. */
   private sessionOpenFields(): { _meta?: Record<string, unknown> } {
     const meta = sessionRequestMeta({
       reasoningEffort: this.options.reasoningEffort,
+      permissionMode: this.options.permissionMode,
     });
     return meta ? { _meta: meta } : {};
   }

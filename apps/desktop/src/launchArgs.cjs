@@ -60,7 +60,9 @@ function buildLaunchArgs(options = {}) {
   if (options.deniedTools && String(options.deniedTools).trim()) {
     args.push("--denied-tools", String(options.deniedTools).trim());
   }
-  if (options.worktree && String(options.worktree).trim()) {
+  // A resumed session already has its own worktree identity. Passing --worktree
+  // again asks newer CLIs to create/fork another isolation directory.
+  if (!options.resumeSessionId && options.worktree && String(options.worktree).trim()) {
     args.push("--worktree", String(options.worktree).trim());
     if (options.worktreeRef && String(options.worktreeRef).trim()) {
       args.push("--worktree-ref", String(options.worktreeRef).trim());
@@ -102,6 +104,7 @@ function launchFingerprint(opts) {
     deniedTools: o.deniedTools || "",
     worktree: o.worktree || "",
     worktreeRef: o.worktreeRef || "",
+    resumeSessionId: o.resumeSessionId || "",
     rules: o.rules || "",
     maxTurns: o.maxTurns || 0,
     disableWebSearch: Boolean(o.disableWebSearch),

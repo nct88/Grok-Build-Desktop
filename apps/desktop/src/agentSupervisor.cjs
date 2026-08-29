@@ -20,6 +20,36 @@ const {
 
 const PRIMARY_ID = "primary";
 const MAX_RECONNECT = 3;
+const AUTO_SAFE_TOOL_KINDS = new Set(["read", "search", "think", "fetch"]);
+const EDIT_TOOL_KINDS = new Set(["edit", "write", "delete", "move"]);
+
+function hookAskText(value) {
+  const seen = new WeakSet();
+  try {
+    return JSON.stringify(value, (_key, item) => {
+      if (typeof item === "object" && item !== null) {
+        if (seen.has(item)) return "[circular]";
+        seen.add(item);
+      }
+      return item;
+    });
+  } catch {
+    return String(value || "");
+  }
+}
+
+/** A PreToolUse decision: ask must stay interactive even in Auto or Full. */
+function isHookAskRequest(request) {
+  const text = hookAskText(request);
+  return /pre[ _-]?tool[ _-]?use/i.test(text) && /\bask\b/i.test(text);
+}
+
+function selectAllowedOption(options, preferAlways = false) {
+  const allowed = options.filter((option) => /allow|accept|yes/i.test(`${option.optionId} ${option.name} ${option.kind}`));
+  return (preferAlways ? allowed.find((option) => /always/i.test(`${option.optionId} ${option.name} ${option.kind}`)) : null) ||
+    allowed.find((option) => /once/i.test(`${option.optionId} ${option.name} ${option.kind}`)) ||
+    allowed[0];
+}
 
 /**
  * @typedef {{
@@ -285,6 +315,7 @@ class AgentSupervisor {
         ...(slot.connectOptions.effort
           ? { reasoningEffort: String(slot.connectOptions.effort) }
           : {}),
+        permissionMode: mode,
         ...(slot.connectOptions.resumeSessionId
           ? { resumeSessionId: slot.connectOptions.resumeSessionId }
           : {}),
@@ -512,34 +543,41 @@ class AgentSupervisor {
     return async (request) => {
       const currentMode = normalizePermissionMode(slot.connectOptions?.permissionMode || mode);
       const optionsList = request.options || [];
-      if (currentMode === "bypassPermissions" || currentMode === "dontAsk" || currentMode === "auto") {
-        const allow =
-          optionsList.find((o) => /allow|accept|yes|always/i.test(`${o.optionId} ${o.name}`)) ||
-          optionsList[0];
-        if (!allow) return { outcome: { outcome: "cancelled" } };
-        return { outcome: { outcome: "selected", optionId: allow.optionId } };
+      const hookAsk = isHookAskRequest(request);
+      const toolKind = String(request.toolCall?.kind || "").toLowerCase();
+      if (!hookAsk && currentMode === "bypassPermissions") {
+        const allow = selectAllowedOption(optionsList, true);
+        return allow
+          ? { outcome: { outcome: "selected", optionId: allow.optionId } }
+          : { outcome: { outcome: "cancelled" } };
       }
-      if (currentMode === "acceptEdits") {
-        const kind = request.toolCall?.kind || "";
-        if (!kind || /edit|write|read|search/i.test(kind)) {
-          const allow =
-            optionsList.find((o) => /allow|accept|yes/i.test(`${o.optionId} ${o.name}`)) ||
-            optionsList[0];
-          if (allow) return { outcome: { outcome: "selected", optionId: allow.optionId } };
-        }
+      if (!hookAsk && currentMode === "auto" && AUTO_SAFE_TOOL_KINDS.has(toolKind)) {
+        const allow = selectAllowedOption(optionsList);
+        if (allow) return { outcome: { outcome: "selected", optionId: allow.optionId } };
+      }
+      if (
+        !hookAsk &&
+        currentMode === "acceptEdits" &&
+        (AUTO_SAFE_TOOL_KINDS.has(toolKind) || EDIT_TOOL_KINDS.has(toolKind))
+      ) {
+        const allow = selectAllowedOption(optionsList);
+        if (allow) return { outcome: { outcome: "selected", optionId: allow.optionId } };
       }
       const requestId = randomUUID();
       this.deps.send("agent:event", {
         type: "permission_request",
         requestId,
+        toolCallId: request.toolCall?.toolCallId || "",
         title: request.toolCall?.title || "Permission required",
         kind: request.toolCall?.kind,
         path: request.toolCall?.locations?.[0]?.path,
-        options: optionsList.map((o) => ({
-          optionId: o.optionId,
-          name: o.name,
-          kind: o.kind,
-        })),
+        locations: request.toolCall?.locations,
+        hookAsk,
+        meta: request._meta,
+        hookName: request.hookName || request._meta?.hookName || request._meta?.hook_name,
+        reason: request.reason || request._meta?.reason,
+        additionalContext: request.additionalContext || request._meta?.additionalContext || request._meta?.additional_context,
+        options: optionsList.map((o) => ({ ...o })),
         slotId: slot.id,
       });
       return new Promise((resolve) => {

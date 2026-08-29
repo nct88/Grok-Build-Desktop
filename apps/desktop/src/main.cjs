@@ -410,11 +410,7 @@ function connectAgentHost(acp, slot, mode) {
   const sup = getSupervisor();
   const isFullAccess =
     mode === "bypassPermissions" ||
-    mode === "dontAsk" ||
-    mode === "auto" ||
-    slot.connectOptions.permissionMode === "bypassPermissions" ||
-    slot.connectOptions.permissionMode === "dontAsk" ||
-    slot.connectOptions.permissionMode === "auto";
+    slot.connectOptions.permissionMode === "bypassPermissions";
   const fsHost = acp.createNodeFsHost({
     workspaceRoot: slot.workspace,
     extraRoots: sanitizeExtraRoots(slot.connectOptions.extraRoots, slot.workspace),

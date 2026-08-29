@@ -873,6 +873,8 @@
             <strong class="perm-title">${escapeHtml(title)}</strong>
             ${item.meta?.kind ? `<span class="perm-kind">${escapeHtml(item.meta.kind)}</span>` : ""}
           </div>
+          ${item.meta?.hookName ? `<p class="perm-context"><strong>${escapeHtml(item.meta.hookName)}</strong>${item.meta?.reason ? ` — ${escapeHtml(item.meta.reason)}` : ""}</p>` : ""}
+          ${item.meta?.additionalContext ? `<p class="perm-context">${escapeHtml(item.meta.additionalContext)}</p>` : ""}
           <div class="perm-card-actions"></div>`;
         const actions = d.querySelector(".perm-card-actions");
         if (resolved) {

@@ -6080,6 +6080,11 @@
           requestId: event.requestId,
           kind: event.kind || "",
           options: event.options || [],
+          hookAsk: Boolean(event.hookAsk),
+          hookName: event.hookName || "",
+          reason: event.reason || "",
+          additionalContext: event.additionalContext || "",
+          meta: event.meta,
           resolved: false,
         });
         scrollEnd();
