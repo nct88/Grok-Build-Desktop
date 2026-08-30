@@ -4,6 +4,15 @@ Public, versioned changes for Grok Build Desktop.
 
 ## Unreleased
 
+## 0.5.50 — 2026-08-31
+
+- Replaced the line-mode dock with a ConPTY PowerShell terminal and xterm.js so ANSI, resize and interactive TUI input work in the project folder.
+- Fixed the titlebar terminal toggle so a second click closes the dock; Electron drag regions no longer swallow the click after the layout shift.
+- Added a Codex-style right-click menu on project folders and nested chats, mapped to Desktop APIs (rename, move, copy, export, delete, open folder).
+- Added a theme-aware busy spinner on the conversation header and the active chat row while the agent is working.
+
+Release details are maintained in `docs/releases/0.5.50.md`.
+
 ## 0.5.49 — 2026-08-29
 
 - Align permission handling with Grok CLI 1.0.13: `dontAsk` stays deny-by-default, Auto only approves safe tool kinds, and `PreToolUse` hook asks stay interactive.

@@ -70,6 +70,7 @@ const INVOKE_CHANNELS = [
   "term:run",
   "term:startShell",
   "term:writeShell",
+  "term:resize",
   "term:stopShell",
   "term:status",
   "term:interrupt",

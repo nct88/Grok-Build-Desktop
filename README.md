@@ -8,7 +8,7 @@ Grok Build Desktop là ứng dụng **agent desktop** chạy trên Electron, s�
 
 > **CLI là lõi · Desktop là giao diện.** Grok Build Desktop không phải Grok Build IDE, không phải bản đổi giao diện của VS Code, và không triển khai một agent runtime thứ hai.
 
-Phiên bản source hiện tại: **0.5.49** — xem [`product/VERSION`](product/VERSION).
+Phiên bản source hiện tại: **0.5.50** — xem [`product/VERSION`](product/VERSION).
 
 ## Tải xuống
 
@@ -16,12 +16,12 @@ Release được phát hành công khai tại GitHub Releases:
 
 | Gói | Mục đích | Tải xuống |
 |---|---|---|
-| NSIS Setup | Cài vào Windows, tạo Start Menu/shortcut | [Grok-Build-Setup-0.5.49.exe](https://github.com/nct88/Grok-Build-Desktop/releases/download/v0.5.49/Grok-Build-Setup-0.5.49.exe) |
-| Portable EXE | Chạy dạng file tự giải nén | [Grok-Build-0.5.49-win32-x64-portable.exe](https://github.com/nct88/Grok-Build-Desktop/releases/download/v0.5.49/Grok-Build-0.5.49-win32-x64-portable.exe) |
-| Portable ZIP | Giải nén một lần, phù hợp dùng lâu dài | [Grok-Build-0.5.49-win32-x64.zip](https://github.com/nct88/Grok-Build-Desktop/releases/download/v0.5.49/Grok-Build-0.5.49-win32-x64.zip) |
-| Manifest | Kích thước và SHA-256 của artifact | [MANIFEST.json](https://github.com/nct88/Grok-Build-Desktop/releases/download/v0.5.49/MANIFEST.json) |
+| NSIS Setup | Cài vào Windows, tạo Start Menu/shortcut | [Grok-Build-Setup-0.5.50.exe](https://github.com/nct88/Grok-Build-Desktop/releases/download/v0.5.50/Grok-Build-Setup-0.5.50.exe) |
+| Portable EXE | Chạy dạng file tự giải nén | [Grok-Build-0.5.50-win32-x64-portable.exe](https://github.com/nct88/Grok-Build-Desktop/releases/download/v0.5.50/Grok-Build-0.5.50-win32-x64-portable.exe) |
+| Portable ZIP | Giải nén một lần, phù hợp dùng lâu dài | [Grok-Build-0.5.50-win32-x64.zip](https://github.com/nct88/Grok-Build-Desktop/releases/download/v0.5.50/Grok-Build-0.5.50-win32-x64.zip) |
+| Manifest | Kích thước và SHA-256 của artifact | [MANIFEST.json](https://github.com/nct88/Grok-Build-Desktop/releases/download/v0.5.50/MANIFEST.json) |
 
-Trang phát hành: [Grok Build Desktop v0.5.49](https://github.com/nct88/Grok-Build-Desktop/releases/tag/v0.5.49).
+Trang phát hành: [Grok Build Desktop v0.5.50](https://github.com/nct88/Grok-Build-Desktop/releases/tag/v0.5.50).
 
 Các file Windows hiện chưa được ký Authenticode. SmartScreen có thể cảnh báo trong lần chạy đầu; hãy kiểm tra SHA-256 trong `MANIFEST.json` trước khi mở file.
 
@@ -69,7 +69,7 @@ Grok Build Desktop (Electron)
 - Đính kèm tệp, kéo-thả, dán ảnh và chèn tham chiếu `@file`.
 - Theo dõi các tệp agent đã chỉnh sửa trong panel Files/Review.
 - Xem diff và chấp nhận/từ chối toàn bộ thay đổi hoặc từng hunk.
-- Terminal tương tác trong workspace và reverse terminal qua ACP khi runtime hỗ trợ.
+- Terminal tích hợp ConPTY/PowerShell với xterm.js trong thư mục dự án, cùng reverse terminal qua ACP khi runtime hỗ trợ.
 - Thanh trạng thái Git, thông tin thay đổi và lối tắt tạo Pull Request.
 
 ### Manager và hệ sinh thái CLI

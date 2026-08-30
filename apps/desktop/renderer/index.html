@@ -6,6 +6,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Grok Build</title>
   <link rel="stylesheet" href="styles.css" />
+  <link rel="stylesheet" href="vendor/xterm.css" />
 </head>
 <body>
   <div class="app" id="app">
@@ -88,6 +89,7 @@
             <div class="conv-title-wrap">
               <span class="conv-project-icon" data-icon="folder" data-icon-size="15" aria-hidden="true"></span>
               <h1 id="convTitle" class="conv-title" data-i18n="noProject">No project</h1>
+              <span id="convBusySpin" class="busy-spin hidden" aria-hidden="true"></span>
             </div>
             <div class="conv-actions">
               <div id="usageChip" class="status-chip usage hidden" title="Session context">
@@ -773,11 +775,7 @@
             <p data-i18n="termNeedProject">Open a project folder to use the terminal.</p>
             <button type="button" class="pill-btn accent" id="btnTermPickProject" data-i18n="openFolder">Open folder</button>
           </div>
-          <pre id="termOut" class="term-out" aria-live="polite"><code></code></pre>
-          <div class="term-input-row" id="termInputRow">
-            <span class="term-prompt-mark" id="termPromptMark">›</span>
-            <input id="termInput" type="text" data-i18n-placeholder="termTypeHere" placeholder="Type a command…" autocomplete="off" spellcheck="false" />
-          </div>
+          <div id="termPty" class="term-pty" aria-label="Integrated terminal"></div>
         </div>
       </div>
     </div><!-- /main-stack -->
@@ -1154,6 +1152,8 @@
   <script src="lib/timelineView.js"></script>
   <script src="lib/sessionTabs.js"></script>
   <script src="lib/commandPalette.js"></script>
+  <script src="vendor/xterm.js"></script>
+  <script src="vendor/xterm-addon-fit.js"></script>
   <script src="app.js"></script>
 </body>
 </html>

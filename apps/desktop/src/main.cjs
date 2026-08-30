@@ -20,7 +20,7 @@ const path = require("node:path");
 const fs = require("node:fs");
 const os = require("node:os");
 const { pathToFileURL } = require("node:url");
-const { TerminalHost, runUserShell, InteractiveShell } = require("./terminalHost.cjs");
+const { TerminalHost, runUserShell, PtyShell } = require("./terminalHost.cjs");
 const { getGitStatus, getPullRequest, createPullRequest } = require("./gitStatus.cjs");
 const { JobRunner } = require("./jobRunner.cjs");
 const { ArtifactStore } = require("./artifactStore.cjs");
@@ -52,7 +52,7 @@ const { execFile } = require("node:child_process");
 /** @type {import('electron').BrowserWindow | null} */
 let mainWindow = null;
 const terminalHost = new TerminalHost();
-const userShell = new InteractiveShell();
+const userShell = new PtyShell();
 
 /** @type {AgentSupervisor|null} */
 let supervisor = null;
@@ -2925,6 +2925,11 @@ app.whenReady().then(() => {
     if (text.length > 8000) throw new Error("Input too long");
     userShell.write(text);
     return { ok: true, cwd };
+  });
+
+  ipcMain.handle("term:resize", async (_e, cols, rows) => {
+    userShell.resize(Number(cols), Number(rows));
+    return { ok: true };
   });
 
   ipcMain.handle("term:stopShell", async () => {

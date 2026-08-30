@@ -151,7 +151,11 @@ try {
 
   // A nested chat row follows the same ownership rule. Its persisted transcript
   // may load, but the running primary slot remains attached to Project A.
-  await page.locator(".project-chat-item").filter({ hasText: sessionTitle }).first().click();
+  await page.evaluate((title) => {
+    const row = Array.from(document.querySelectorAll(".project-chat-item"))
+      .find((node) => node.textContent?.includes(title));
+    row?.click();
+  }, sessionTitle);
   await page.waitForFunction((text) => document.querySelector("#messages")?.textContent?.includes(text), "Nội dung beta đã lưu.");
   assert.equal(await page.locator("#workspaceLabel").textContent(), projectB);
   assert.equal(await page.locator(".session-tab").count(), 0);

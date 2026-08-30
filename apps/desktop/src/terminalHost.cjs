@@ -4,6 +4,7 @@
  */
 const { spawn } = require("node:child_process");
 const { randomUUID } = require("node:crypto");
+const pty = require("node-pty");
 
 function resolveTerminalSpawn(command, args, platform = process.platform, comspec = process.env.ComSpec) {
   const providedArgs = args ?? [];
@@ -161,7 +162,7 @@ function runUserShell(command, cwd, onChunk) {
  * Long-lived interactive shell for the Terminal dock.
  * Always started with an explicit project cwd (never silent process.cwd()).
  */
-class InteractiveShell {
+class PtyShell {
   constructor() {
     this.child = null;
     this.cwd = null;
@@ -185,70 +186,53 @@ class InteractiveShell {
     let args;
     const env = { ...process.env };
     if (isWin) {
-      // Interactive cmd; directory comes from spawn `cwd` only.
-      // Do NOT pass `cd /d "C:\path"` via /k — trailing `\"` breaks cmd
-      // ("The filename, directory name, or volume label syntax is incorrect").
-      command = process.env.ComSpec || "cmd.exe";
-      args = ["/d", "/k"];
+      // A real ConPTY, rather than stdout/stderr pipes. PowerShell is the
+      // native Windows shell shown by default in Codex's integrated terminal.
+      command = "powershell.exe";
+      args = [];
     } else {
       command = process.env.SHELL || "/bin/bash";
       args = ["-i"];
     }
-    this.child = spawn(command, args, {
+    this.child = pty.spawn(command, args, {
       cwd: this.cwd,
       env,
-      stdio: ["pipe", "pipe", "pipe"],
-      windowsHide: true,
-      shell: false,
+      name: "xterm-256color",
+      cols: 80,
+      rows: 24,
+      useConpty: isWin,
     });
     const append = (chunk) => {
       this.onData?.(String(chunk));
     };
-    this.child.stdout?.setEncoding("utf8");
-    this.child.stderr?.setEncoding("utf8");
-    this.child.stdout?.on("data", append);
-    this.child.stderr?.on("data", append);
-    this.child.once("exit", (code) => {
-      append(`\r\n[exited ${code}]\r\n`);
-      this.child = null;
+    const shell = this.child;
+    shell.onData(append);
+    shell.onExit(({ exitCode }) => {
+      append(`\r\n[exited ${exitCode}]\r\n`);
+      // A previous shell can finish after Restart has already created a new
+      // one; never let that stale exit clear the live PTY reference.
+      if (this.child === shell) this.child = null;
     });
-    this.child.once("error", (err) => {
-      append(`\r\n[error] ${err.message}\r\n`);
-      this.child = null;
-    });
-    // Quiet banner — pure terminal (path is in dock title)
-    if (!isWin) {
-      // Ensure shell is in project dir even if spawn cwd ignored
-      try {
-        this.child.stdin?.write(`cd ${JSON.stringify(root)}\n`);
-      } catch {
-        // ignore
-      }
-    }
   }
 
-  write(line) {
-    if (!this.child?.stdin || this.child.killed) {
+  write(data) {
+    if (!this.child) {
       throw new Error("Shell not running.");
     }
-    let text = String(line ?? "");
-    // cmd.exe over a pipe is happier with CRLF; avoid double newlines
-    if (process.platform === "win32") {
-      text = text.replace(/\r?\n$/, "");
-      text = `${text}\r\n`;
-    } else if (!text.endsWith("\n")) {
-      text = `${text}\n`;
-    }
-    this.child.stdin.write(text);
+    this.child.write(String(data ?? ""));
   }
 
-  /** Soft interrupt (Ctrl+C) without killing the shell. */
+  resize(cols, rows) {
+    if (!this.child || !Number.isFinite(cols) || !Number.isFinite(rows)) return;
+    this.child.resize(Math.max(2, Math.floor(cols)), Math.max(1, Math.floor(rows)));
+  }
+
+  /** Soft interrupt (Ctrl+C) delivered through the real PTY. */
   interrupt() {
     if (!this.child || this.child.killed) return;
     try {
       if (process.platform === "win32") {
-        // Best-effort: send Ctrl+C sequence via stdin is unreliable; kill process tree soft
-        this.child.stdin?.write("\x03");
+        this.child.write("\x03");
       } else {
         this.child.kill("SIGINT");
       }
@@ -258,7 +242,7 @@ class InteractiveShell {
   }
 
   stop() {
-    if (this.child && !this.child.killed) {
+    if (this.child) {
       try {
         this.child.kill();
       } catch {
@@ -269,7 +253,7 @@ class InteractiveShell {
   }
 
   get running() {
-    return Boolean(this.child && !this.child.killed);
+    return Boolean(this.child);
   }
 }
 
@@ -277,5 +261,5 @@ module.exports = {
   TerminalHost,
   resolveTerminalSpawn,
   runUserShell,
-  InteractiveShell,
+  PtyShell,
 };

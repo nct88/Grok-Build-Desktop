@@ -130,15 +130,21 @@ try {
   const targetProject = page.locator(".project-block").filter({
     has: page.getByTitle(projectB, { exact: true }),
   });
-  await sessionRow.hover();
-  await sessionRow.getByRole("button", { name: /Move|Di chuyển/ }).click();
+  async function openMoveMenuFromRow(row) {
+    await page.keyboard.press("Escape");
+    await row.click({ button: "right" });
+    await page.waitForSelector("#sidebarCtx:not(.hidden)");
+    await page.locator('#sidebarCtx [data-sidebar-act="move"]').click();
+    await page.waitForSelector("#sessionMoveMenu:not(.hidden)");
+  }
+
+  await openMoveMenuFromRow(sessionRow);
   await page.screenshot({
     path: path.join(evidenceDir, "project-session-move-menu-dark-1440x900.png"),
   });
   await page.locator("#btnTheme").click();
   await page.waitForTimeout(100);
-  await sessionRow.hover();
-  await sessionRow.getByRole("button", { name: /Move|Di chuyển/ }).click();
+  await openMoveMenuFromRow(sessionRow);
   await page.screenshot({
     path: path.join(evidenceDir, "project-session-move-menu-light-1440x900.png"),
   });
@@ -163,8 +169,7 @@ try {
     BrowserWindow.getAllWindows()[0].setContentSize(1000, 640);
   });
   await page.waitForTimeout(80);
-  await sessionRow.hover();
-  await sessionRow.getByRole("button", { name: /Move|Di chuyển/ }).click();
+  await openMoveMenuFromRow(sessionRow);
   const compactMenu = await page.evaluate(() => {
     const rect = document.querySelector("#sessionMoveMenu")?.getBoundingClientRect();
     return rect ? {

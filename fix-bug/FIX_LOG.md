@@ -1,5 +1,54 @@
 # Fix log
 
+## 2026-08-31 — Phát hành Grok Build Desktop 0.5.50
+
+- **Target version:** 0.5.50
+- **Yêu cầu gốc / Triệu chứng (Symptom):** Đóng gói, commit, push, GitHub Release và R2 cho các thay đổi terminal ConPTY/xterm, toggle titlebar, menu chuột phải sidebar và spinner cuộc thảo luận.
+- **Nguyên nhân gốc rễ (Root Cause):** n/a (release).
+- **Giải pháp chi tiết (Resolution):** Bump 0.5.50, ghi chú song ngữ, `asarUnpack` cho `node-pty`, `npm run check` rồi `publish-release.ps1`. Artifact unsigned local candidate.
+- **Danh sách file tác động:** source terminal/sidebar/spinner, `docs/releases/0.5.50.md`, README/CHANGELOG, `dist/0.5.50/` (gitignored).
+- **Kiểm chứng (Verification Proof):** `npm run check` exit 0, 30 E2E. Artifact:
+  - Setup `Grok-Build-Setup-0.5.50.exe` 92,834,263 bytes SHA-256 `A82906DA21DA1DE5725CC2EB4D8E09474385546B6CD736B1500EFC011EC5C23A`
+  - Portable EXE 92,411,243 bytes SHA-256 `E2CFF2DE64A37DE33E55A5B293FBAAA23477588267AC3B7483AC2E2711712B30`
+  - Portable ZIP 149,784,913 bytes SHA-256 `3D4B4EB0C8320F78E6EBDA5C3C29963138D8EEF1BE06AE6074A4BB94BF951432`
+  - `app.asar` 4,529,907 bytes SHA-256 `FCDF3D60B7BBD818251F023B27A72FF23B81D03EB79EB7051FA90B1256D3FCD3`
+
+## 2026-08-30 — Menu chuột phải sidebar dự án + spinner cuộc thảo luận (v0.5.49)
+
+- **Target version:** 0.5.49
+- **Yêu cầu gốc / Triệu chứng (Symptom):** Chuột phải trên thư mục dự án / chat trong sidebar không có menu (chỉ menu Electron mặc định). Cần đối chiếu Codex và thêm spinner xoay khi cuộc thảo luận đang chạy, góc phải header + hàng chat; tối thì vòng sáng, sáng thì vòng tối.
+- **Nguyên nhân gốc rễ (Root Cause):** `project-item` và `project-chat-item` không `preventDefault` trên `contextmenu`. Hàng chat chỉ có Export/Move/Delete hiện khi hover, che click. Không có busy spinner theo theme trên header/hàng chat.
+- **Giải pháp chi tiết (Resolution):** Menu chuột phải Desktop, không clone đủ bộ Codex. Thư mục dự án: Chat mới, Mở thư mục, Sao chép đường dẫn, Mở IDE, Gỡ khỏi danh sách. Chat: Đổi tên, Di chuyển, Sao chép (ID phiên / Markdown), Xuất, Xóa. Bỏ Pin/Archive/Share/Unread/cửa sổ mới vì không có API Desktop. Spinner `busy-spin` dùng `var(--text)` nên đảo màu theo theme. Gỡ nút hover để click hàng chat không bị chặn.
+- **Danh sách file tác động:** `apps/desktop/renderer/app.js`, `index.html`, `styles.css`, `lib/i18n.js`; `scripts/test-sidebar-context-menu.mjs`, `test-project-session-sync-ui.mjs`, `test-sidebar-project-runtime.mjs`; `package.json`.
+- **Kiểm chứng (Verification Proof):** `node scripts/test-sidebar-context-menu.mjs` pass (menu dự án/chat, submenu sao chép, spinner dark rgb(243,243,243) / light rgb(17,17,17)). `npm run check` exit 0: 30 E2E, visual 1000×640 + 1440×900.
+- **Bài học rút ra:** Nút hover trên hàng sidebar dễ nuốt click; menu chuột phải Codex chỉ giữ các lệnh đã có IPC trên Desktop.
+
+## 2026-08-30 — Nút titlebar nhấn lần 2 không tắt terminal (v0.5.49)
+
+- **Target version:** 0.5.49
+- **Yêu cầu gốc / Triệu chứng (Symptom):** Nút terminal trên titlebar mở dock lần 1, nhưng lần nhấn thứ 2 không tắt được. Playwright `click()` vẫn pass vì CDP bỏ qua hit-test kéo cửa sổ.
+- **Nguyên nhân gốc rễ (Root Cause):** `.titlebar` gắn `-webkit-app-region: drag`. Sau khi dock mở (layout shift + xterm focus), Chromium/Electron nuốt event `click` thứ hai trên nút `no-drag`; chỉ còn `pointerdown`. Handler cũ chỉ lắng nghe `click` nên lần 2 không chạy. Không phải PTY tự mở lại dock.
+- **Giải pháp chi tiết (Resolution):** Chỉ spacer `.titlebar-drag` được phép drag; toàn bộ titlebar, menu và icon button là `no-drag`. Chuột toggle trên `pointerdown` (capture); bàn phím vẫn dùng `click` với `detail === 0` để không bị double-toggle. Thêm runtime test phát `pointerdown` không kèm `click`.
+- **Danh sách file tác động:** `apps/desktop/renderer/app.js`, `apps/desktop/renderer/styles.css`; `scripts/test-terminal-toggle.mjs`, `scripts/test-integrated-terminal.mjs`; `package.json`.
+- **Kiểm chứng (Verification Proof):** `node scripts/test-terminal-toggle.mjs` pass (mở/đóng bằng chuột, đóng bằng pointerdown-only, nút ×, burst 4 click, PTY không tự mở lại). `npm run check` exit 0: architecture/packaging/brand/release, 30 E2E, visual 1000×640 + 1440×900.
+- **Bài học rút ra:** Event `click` trên nút trong titlebar Electron không phải nguồn sự thật; test phải phát `pointerdown` tách khỏi `click`, và không lấy Playwright CDP làm bằng chứng cho hit-test kéo cửa sổ.
+
+## 2026-08-30 — Nút đóng terminal bị PTY stream mở lại ngay (v0.5.49)
+
+- **Yêu cầu gốc / Triệu chứng (Symptom):** Khi terminal tích hợp đang mở, bấm biểu tượng terminal góc trên phải hoặc nút × trong thanh terminal không thể giữ trạng thái đóng.
+- **Nguyên nhân gốc rễ (Root Cause):** Listener `term:chunk` tự gọi `setTermVisible(true)` với mọi chunk output. PTY PowerShell phát prompt/stream sau thao tác đóng nên dock bị mở lại ngay.
+- **Giải pháp chi tiết (Resolution):** Giữ trạng thái ẩn là lựa chọn tường minh của người dùng; output PTY vẫn được đưa vào xterm nhưng không thay đổi visibility. `termVisible` là state duy nhất, và nút tiêu đề, nút ×, command palette, `Ctrl+T` cùng dùng transition toggle/close thay vì suy luận từ class CSS đang animation. Nút trên title bar bắt click ở capture phase để nó thắng drag/event của Electron khi bấm lặp. Bổ sung regression contract để chặn việc thêm lại auto-open theo background stream.
+- **Kiểm chứng (Verification Proof):** Runtime Electron kiểm tra cả nút tiêu đề và nút × khi shell đang chạy; đóng vẫn giữ dock collapsed sau output nền. Năm chu kỳ mở/đóng liên tiếp, luân phiên hai nút, đều pass; ba click nhanh trên title bar khi terminal đang mở cũng kết thúc ở trạng thái đóng. Bộ terminal contract và test suite chạy lại sau sửa đổi.
+
+## 2026-08-30 — Terminal tích hợp Windows dùng ConPTY + PowerShell (v0.5.49)
+
+- **Yêu cầu gốc / Triệu chứng (Symptom):** Terminal dock chỉ là giao diện từng dòng chạy `cmd.exe` qua pipe. ANSI bị xoá và ứng dụng TUI (`grok`, `vim`, `lazygit`…) bị chặn; người dùng yêu cầu terminal tích hợp vận hành như terminal Windows gốc trong Codex.
+- **Nguyên nhân gốc rễ (Root Cause):** `InteractiveShell` tạo child process với `stdio: ["pipe", "pipe", "pipe"]`, nên không có pseudo-terminal Windows, không truyền được cursor/resize/escape sequences.
+- **Giải pháp chi tiết (Resolution):** Thay interactive shell bằng `node-pty`/ConPTY, mặc định `powershell.exe`, thêm IPC resize, và thay `<pre>` + input line-mode bằng `xterm.js` cùng FitAddon. Bàn phím, ANSI, alternate screen và kích thước terminal được chuyển hai chiều trực tiếp qua PTY; vẫn giữ các nút Clear, Restart và mở terminal ngoài.
+- **Danh sách file tác động:** `apps/desktop/src/terminalHost.cjs`, `main.cjs`, `preload.cjs`, `ipcContract.cjs`; `apps/desktop/renderer/index.html`, `app.js`, `styles.css`, các xterm vendor assets; package manifests/lockfile; `scripts/test-integrated-terminal.mjs`.
+- **Kiểm chứng (Verification Proof):** Node ConPTY smoke in ra `PTY_OK`; Electron runtime mở dock tại `E:\projects\Grok-Build-Desktop`, hiển thị banner Windows PowerShell và prompt đúng thư mục, sau đó chạy `Write-Output PTY_INTERACTION_OK` thành công. Contract test, architecture, packaging, release và visual layout gates đã chạy.
+- **Bài học rút ra:** Đổi shell từ CMD sang PowerShell không tự biến pipe thành terminal; TUI trong Electron cần cả PTY/ConPTY và emulator ANSI ở renderer.
+
 ## 2026-08-29 — Grok CLI 1.0.13 ACP host compatibility (v0.5.49)
 
 - **Target version:** 0.5.49

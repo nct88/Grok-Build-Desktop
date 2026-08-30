@@ -296,6 +296,19 @@
   sessionCtx.setAttribute("role", "menu");
   document.body.appendChild(sessionCtx);
 
+  const sidebarCtx = document.createElement("div");
+  sidebarCtx.id = "sidebarCtx";
+  sidebarCtx.className = "media-ctx sidebar-ctx hidden";
+  sidebarCtx.setAttribute("role", "menu");
+  sidebarCtx.setAttribute("aria-label", "Sidebar");
+  document.body.appendChild(sidebarCtx);
+
+  const sidebarSubmenu = document.createElement("div");
+  sidebarSubmenu.id = "sidebarSubmenu";
+  sidebarSubmenu.className = "media-ctx sidebar-ctx hidden";
+  sidebarSubmenu.setAttribute("role", "menu");
+  document.body.appendChild(sidebarSubmenu);
+
   /** @type {{ kind?: string, displayUrl?: string, filePath?: string, rawSrc?: string } | null} */
   let mediaActive = null;
   /** @type {{ path?: string, label?: string } | null} */
@@ -322,10 +335,74 @@
     sessionContextText = "";
   }
 
+  /** @type {{ kind: "project"|"chat", projectPath?: string, session?: object } | null} */
+  let sidebarCtxTarget = null;
+
+  function hideSidebarSubmenu() {
+    sidebarSubmenu.classList.add("hidden");
+    sidebarSubmenu.replaceChildren();
+  }
+
+  function hideSidebarCtx() {
+    sidebarCtx.classList.add("hidden");
+    sidebarCtx.replaceChildren();
+    hideSidebarSubmenu();
+    sidebarCtxTarget = null;
+  }
+
+  function placeFixedMenu(el, x, y) {
+    el.classList.remove("hidden");
+    const pad = 8;
+    const width = el.offsetWidth || 220;
+    const height = el.offsetHeight || 160;
+    let left = Number(x) || 0;
+    let top = Number(y) || 0;
+    if (left + width > window.innerWidth - pad) left = window.innerWidth - width - pad;
+    if (top + height > window.innerHeight - pad) top = window.innerHeight - height - pad;
+    el.style.left = `${Math.max(pad, left)}px`;
+    el.style.top = `${Math.max(pad, top)}px`;
+  }
+
+  function createMenuButton({ action, label, icon, hint, danger, disabled }) {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.setAttribute("role", "menuitem");
+    if (action) button.dataset.sidebarAct = action;
+    if (danger) button.classList.add("danger");
+    if (disabled) button.disabled = true;
+    if (icon) {
+      const ico = document.createElement("span");
+      ico.className = "ctx-ico";
+      ico.setAttribute("data-icon", icon);
+      ico.setAttribute("data-icon-size", "14");
+      ico.setAttribute("aria-hidden", "true");
+      button.appendChild(ico);
+    }
+    const text = document.createElement("span");
+    text.className = "ctx-label";
+    text.textContent = label;
+    button.appendChild(text);
+    if (hint) {
+      const mark = document.createElement("span");
+      mark.className = "ctx-hint";
+      mark.textContent = hint;
+      button.appendChild(mark);
+    }
+    return button;
+  }
+
+  function appendMenuSep(host) {
+    const sep = document.createElement("div");
+    sep.className = "ctx-sep";
+    sep.setAttribute("role", "separator");
+    host.appendChild(sep);
+  }
+
   function showSessionCtx(pos, itemText) {
     hideMediaCtx();
     hidePathCtx();
     hideSessionMoveMenu();
+    hideSidebarCtx();
     const selection = String(globalThis.getSelection?.()?.toString() || "").trim();
     sessionContextText = selection || String(itemText || "").trim();
     sessionCtx.innerHTML = `
@@ -347,6 +424,7 @@
   function showSessionMoveMenu(sessionInfo, pos) {
     hideMediaCtx();
     hidePathCtx();
+    hideSidebarCtx();
     sessionMoveActive = sessionInfo || null;
     sessionMoveMenu.replaceChildren();
     const heading = document.createElement("div");
@@ -665,12 +743,19 @@
         hideSessionMoveMenu();
       }
       if (!sessionCtx.classList.contains("hidden") && !sessionCtx.contains(e.target)) hideSessionCtx();
+      const inSidebarMenu = sidebarCtx.contains(e.target) || sidebarSubmenu.contains(e.target);
+      if (!inSidebarMenu) {
+        if (!sidebarSubmenu.classList.contains("hidden")) hideSidebarSubmenu();
+        if (!sidebarCtx.classList.contains("hidden")) hideSidebarCtx();
+      }
     },
     true,
   );
   document.addEventListener("keydown", (e) => {
     if (e.key === "Escape") {
-      if (!pathCtx.classList.contains("hidden")) hidePathCtx();
+      if (!sidebarSubmenu.classList.contains("hidden")) hideSidebarSubmenu();
+      else if (!sidebarCtx.classList.contains("hidden")) hideSidebarCtx();
+      else if (!pathCtx.classList.contains("hidden")) hidePathCtx();
       else if (!mediaCtx.classList.contains("hidden")) hideMediaCtx();
       else if (!sessionMoveMenu.classList.contains("hidden")) hideSessionMoveMenu();
       else if (!sessionCtx.classList.contains("hidden")) hideSessionCtx();
@@ -1028,6 +1113,26 @@
     if (tokEl) tokEl.textContent = lastUsageFooter || "";
     const icon = bar.querySelector(".turn-status-icon");
     icon?.classList.toggle("spin", true);
+    paintConversationBusy();
+  }
+
+  function conversationIsBusy() {
+    return Boolean(busy);
+  }
+
+  function sessionRowIsBusy(sessionId) {
+    if (!sessionId) return false;
+    if (sessionId === activeSessionId && conversationIsBusy()) return true;
+    return (sessionTabs?.tabs || []).some((tab) => tab.sessionId === sessionId && tab.busy);
+  }
+
+  function paintConversationBusy() {
+    const on = conversationIsBusy();
+    $("convBusySpin")?.classList.toggle("hidden", !on);
+    document.querySelectorAll(".project-chat-item").forEach((row) => {
+      const spinning = sessionRowIsBusy(row.dataset.sessionId) || (on && row.classList.contains("active"));
+      row.querySelector(".busy-spin")?.classList.toggle("hidden", !spinning);
+    });
   }
 
   function phaseLabel(phase) {
@@ -3260,10 +3365,62 @@
     if (persist) saveLayout({ filePreviewWrap: isWrap });
   }
 
+  // Visibility is application state, not an inference from an element that is
+  // in the middle of its CSS close/open transition. This keeps every control
+  // deterministic across repeated terminal toggles.
+  let termVisible = false;
+
   function isTermOpen() {
-    const dock = $("termDock");
-    if (!dock) return false;
-    return !dock.classList.contains("collapsed") && !dock.classList.contains("hidden");
+    return termVisible;
+  }
+
+  function toggleTermVisible() {
+    setTermVisible(!termVisible);
+  }
+
+  let ptyTerminal = null;
+  let ptyFit = null;
+  let ptyResizeObserver = null;
+
+  function fitPtyTerminal() {
+    if (!ptyTerminal || !ptyFit) return;
+    try {
+      ptyFit.fit();
+      void api.resizeTerminal?.(ptyTerminal.cols, ptyTerminal.rows);
+    } catch {
+      // During the dock transition it can briefly have zero dimensions.
+    }
+  }
+
+  function focusPtyTerminal() {
+    ptyTerminal?.focus();
+  }
+
+  function mountPtyTerminal() {
+    const host = $("termPty");
+    if (!host || !globalThis.Terminal || !globalThis.FitAddon) return false;
+    if (!ptyTerminal) {
+      ptyTerminal = new globalThis.Terminal({
+        cursorBlink: true,
+        fontFamily: "Consolas, 'Cascadia Mono', monospace",
+        fontSize: 12.5,
+        scrollback: 10_000,
+        theme: { background: "#111111", foreground: "#e6e6e6" },
+        convertEol: true,
+      });
+      ptyFit = new globalThis.FitAddon.FitAddon();
+      ptyTerminal.loadAddon(ptyFit);
+      ptyTerminal.onData((data) => {
+        void api.writeShell(data, workspaceRoot).catch(() => undefined);
+      });
+      ptyTerminal.open(host);
+    }
+    ptyResizeObserver?.disconnect();
+    ptyResizeObserver = new ResizeObserver(fitPtyTerminal);
+    ptyResizeObserver.observe(host);
+    fitPtyTerminal();
+    focusPtyTerminal();
+    return true;
   }
 
   let termReady = false;
@@ -3352,8 +3509,7 @@
 
   function setTermEmpty(needProject) {
     $("termEmpty")?.classList.toggle("hidden", !needProject);
-    $("termInputRow")?.classList.toggle("hidden", needProject);
-    $("termOut")?.classList.toggle("hidden", needProject);
+    $("termPty")?.classList.toggle("hidden", needProject);
   }
 
   function appendTerm(text, opts = {}) {
@@ -3393,8 +3549,7 @@
   function clearTermBuffer() {
     termBuffer = "";
     termTuiBlocked = false;
-    const code = $("termOut")?.querySelector("code");
-    if (code) code.textContent = "";
+    ptyTerminal?.clear();
   }
 
   /** Ensure interactive shell is running in the open project folder. */
@@ -3425,6 +3580,7 @@
       termReady = true;
       termCwdActive = res?.cwd || root;
       updateTermCwdLabel(termCwdActive);
+      fitPtyTerminal();
       if (opts.clear !== false && !opts.silent) {
         // keep existing buffer; only soft note on restart
       }
@@ -3481,6 +3637,7 @@
     const btn = $("btnToggleTerm");
     if (!dock) return;
     const on = Boolean(show);
+    termVisible = on;
     dock.classList.toggle("collapsed", !on);
     dock.classList.remove("hidden");
     if (btn) btn.setAttribute("aria-pressed", on ? "true" : "false");
@@ -3492,9 +3649,13 @@
       } else {
         setTermEmpty(false);
         updateTermCwdLabel(workspaceRoot);
-        // Auto-start shell in project (like VS Code / Cursor / Codex)
+        // PTY is mounted before the shell starts so its initial banner is rendered.
+        mountPtyTerminal();
         void ensureProjectShell({ silent: true }).then(() => {
-          setTimeout(() => $("termInput")?.focus(), 40);
+          setTimeout(() => {
+            fitPtyTerminal();
+            focusPtyTerminal();
+          }, 40);
         });
       }
     }
@@ -4234,6 +4395,312 @@
     });
   }
 
+  function showSidebarCopySubmenu(anchor) {
+    sidebarSubmenu.replaceChildren();
+    sidebarSubmenu.append(
+      createMenuButton({
+        action: "copy-id",
+        label: tt("copySessionId", "Copy session ID"),
+        icon: "copy",
+      }),
+      createMenuButton({
+        action: "copy-md",
+        label: tt("copyMarkdown", "Copy as Markdown"),
+        icon: "file",
+      }),
+    );
+    try {
+      globalThis.GrokIcons?.applyAll?.(sidebarSubmenu);
+    } catch {
+      /* ignore */
+    }
+    const rect = anchor.getBoundingClientRect();
+    sidebarSubmenu.classList.remove("hidden");
+    const width = sidebarSubmenu.offsetWidth || 210;
+    let x = rect.right + 4;
+    if (x + width > window.innerWidth - 8) x = rect.left - width - 4;
+    placeFixedMenu(sidebarSubmenu, x, rect.top);
+  }
+
+  function fillProjectSidebarMenu(projectPath) {
+    sidebarCtx.replaceChildren();
+    sidebarCtx.append(
+      createMenuButton({
+        action: "new-chat",
+        label: tt("newConversation", "New chat"),
+        icon: "plus",
+      }),
+      createMenuButton({
+        action: "open-folder",
+        label: tt("openFolder", "Open folder"),
+        icon: "folderOpen",
+      }),
+      createMenuButton({
+        action: "copy-path",
+        label: tt("pathCopy", "Copy path"),
+        icon: "copy",
+      }),
+    );
+    appendMenuSep(sidebarCtx);
+    sidebarCtx.appendChild(
+      createMenuButton({
+        action: "open-ide",
+        label: tt("openInIde", "Open in IDE"),
+        icon: "ide",
+      }),
+    );
+    appendMenuSep(sidebarCtx);
+    sidebarCtx.appendChild(
+      createMenuButton({
+        action: "remove-project",
+        label: tt("removeProject", "Remove from list"),
+        icon: "close",
+      }),
+    );
+  }
+
+  function fillChatSidebarMenu() {
+    sidebarCtx.replaceChildren();
+    sidebarCtx.append(
+      createMenuButton({
+        action: "rename",
+        label: tt("renameChat", "Rename"),
+        icon: "edit",
+      }),
+      createMenuButton({
+        action: "move",
+        label: tt("moveChatTo", "Move chat to"),
+        icon: "folder",
+        hint: "›",
+      }),
+    );
+    appendMenuSep(sidebarCtx);
+    const copyBtn = createMenuButton({
+      action: "copy-menu",
+      label: tt("copyMenu", "Copy"),
+      icon: "copy",
+      hint: "›",
+    });
+    copyBtn.addEventListener("mouseenter", () => showSidebarCopySubmenu(copyBtn));
+    sidebarCtx.appendChild(copyBtn);
+    sidebarCtx.appendChild(
+      createMenuButton({
+        action: "export",
+        label: tt("exportChat", "Export"),
+        icon: "file",
+      }),
+    );
+    appendMenuSep(sidebarCtx);
+    sidebarCtx.appendChild(
+      createMenuButton({
+        action: "delete",
+        label: tt("deleteChat", "Delete"),
+        icon: "close",
+        danger: true,
+      }),
+    );
+  }
+
+  function showProjectSidebarMenu(projectPath, pos) {
+    hideMediaCtx();
+    hidePathCtx();
+    hideSessionMoveMenu();
+    hideSessionCtx();
+    hideSidebarSubmenu();
+    sidebarCtxTarget = { kind: "project", projectPath };
+    fillProjectSidebarMenu(projectPath);
+    try {
+      globalThis.GrokIcons?.applyAll?.(sidebarCtx);
+    } catch {
+      /* ignore */
+    }
+    placeFixedMenu(sidebarCtx, pos?.x ?? 0, pos?.y ?? 0);
+  }
+
+  function showChatSidebarMenu(sessionInfo, pos) {
+    hideMediaCtx();
+    hidePathCtx();
+    hideSessionMoveMenu();
+    hideSessionCtx();
+    hideSidebarSubmenu();
+    sidebarCtxTarget = { kind: "chat", session: sessionInfo };
+    fillChatSidebarMenu();
+    try {
+      globalThis.GrokIcons?.applyAll?.(sidebarCtx);
+    } catch {
+      /* ignore */
+    }
+    placeFixedMenu(sidebarCtx, pos?.x ?? 0, pos?.y ?? 0);
+  }
+
+  function bindProjectContextMenu(el, projectPath) {
+    el.addEventListener("contextmenu", (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      showProjectSidebarMenu(projectPath, { x: event.clientX, y: event.clientY });
+    });
+  }
+
+  function bindChatContextMenu(el, sessionInfo) {
+    el.addEventListener("contextmenu", (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      showChatSidebarMenu(sessionInfo, { x: event.clientX, y: event.clientY });
+    });
+  }
+
+  async function renameHistorySession(sessionInfo) {
+    if (!sessionInfo?.id) return;
+    const title = window.prompt(tt("renamePrompt", "New chat title"), sessionInfo.title || "");
+    if (!title) return;
+    try {
+      const res = await api.renameSession(sessionInfo.id, title);
+      const next = res?.title || title;
+      const tab = (sessionTabs?.tabs || []).find((item) => item.sessionId === sessionInfo.id);
+      if (tab) sessionTabs.updateTab?.(tab.id, { title: next });
+      void refreshHistory();
+    } catch (error) {
+      addMsg("error", error.message || String(error));
+    }
+  }
+
+  async function exportHistorySession(sessionInfo, toClipboard) {
+    if (!sessionInfo?.id) return;
+    try {
+      const mdText = await api.exportSession(sessionInfo.id);
+      if (toClipboard) {
+        if (api.writeClipboardText) await api.writeClipboardText(mdText);
+        addStep(tt("copiedMarkdown", "Copied as Markdown"));
+        return;
+      }
+      await api.saveExport(mdText, `${String(sessionInfo.id).slice(0, 8)}.md`);
+      addStep("Session exported");
+    } catch (error) {
+      addMsg("error", error.message || String(error));
+    }
+  }
+
+  async function deleteHistorySession(sessionInfo) {
+    if (!sessionInfo?.id) return;
+    if (!confirm(`Delete session ${sessionInfo.title || sessionInfo.id}?`)) return;
+    try {
+      await api.deleteSession(sessionInfo.id);
+      if (sessionInfo.id === activeSessionId) {
+        addStep(tt("deletedChat", "Chat deleted"));
+        await newChatTab(true);
+      }
+      void refreshHistory();
+    } catch (error) {
+      addMsg("error", error.message || String(error));
+    }
+  }
+
+  async function removeProjectFromList(projectPath) {
+    const next = projectListItems().filter((item) => !samePath(item, projectPath));
+    if (samePath(projectPath, workspaceRoot)) {
+      await openProjectTab(next[0] || null);
+    }
+    await persistProjectOrder(next);
+    renderProjects();
+  }
+
+  async function runSidebarCtxAction(action, originEvent) {
+    const target = sidebarCtxTarget;
+    if (!target) return;
+    if (action === "copy-menu") {
+      const btn = originEvent?.target?.closest?.("button");
+      if (btn) showSidebarCopySubmenu(btn);
+      return;
+    }
+    const pos = originEvent
+      ? { x: originEvent.clientX, y: originEvent.clientY }
+      : { x: 0, y: 0 };
+    hideSidebarCtx();
+    if (target.kind === "project") {
+      const projectPath = target.projectPath;
+      if (action === "new-chat") {
+        await openProjectTab(projectPath);
+        await newChatTab(true);
+        return;
+      }
+      if (action === "open-folder") {
+        try {
+          await api.openPath?.(projectPath);
+        } catch (error) {
+          addMsg("error", error.message || String(error));
+        }
+        return;
+      }
+      if (action === "copy-path") {
+        if (api.writeClipboardText) await api.writeClipboardText(projectPath);
+        addStep(tt("pathCopy", "Copy path"));
+        return;
+      }
+      if (action === "open-ide") {
+        try {
+          await api.openIde?.({ workspace: projectPath });
+        } catch (error) {
+          addMsg("error", error.message || String(error));
+        }
+        return;
+      }
+      if (action === "remove-project") {
+        await removeProjectFromList(projectPath);
+      }
+      return;
+    }
+    const sessionInfo = target.session;
+    if (!sessionInfo?.id) return;
+    if (action === "rename") {
+      await renameHistorySession(sessionInfo);
+      return;
+    }
+    if (action === "move") {
+      showSessionMoveMenu(sessionInfo, pos);
+      return;
+    }
+    if (action === "copy-id") {
+      if (api.writeClipboardText) await api.writeClipboardText(sessionInfo.id);
+      addStep(tt("copiedSessionId", "Copied session ID"));
+      return;
+    }
+    if (action === "copy-md") {
+      await exportHistorySession(sessionInfo, true);
+      return;
+    }
+    if (action === "export") {
+      await exportHistorySession(sessionInfo, false);
+      return;
+    }
+    if (action === "delete") {
+      await deleteHistorySession(sessionInfo);
+    }
+  }
+
+  sidebarCtx.addEventListener("click", (event) => {
+    const action = event.target?.closest?.("[data-sidebar-act]")?.getAttribute("data-sidebar-act");
+    if (!action) return;
+    event.preventDefault();
+    event.stopPropagation();
+    void runSidebarCtxAction(action, event);
+  });
+  sidebarSubmenu.addEventListener("click", (event) => {
+    const action = event.target?.closest?.("[data-sidebar-act]")?.getAttribute("data-sidebar-act");
+    if (!action) return;
+    event.preventDefault();
+    event.stopPropagation();
+    void runSidebarCtxAction(action, event);
+  });
+  sidebarCtx.addEventListener("mouseleave", (event) => {
+    if (sidebarSubmenu.contains(event.relatedTarget)) return;
+    hideSidebarSubmenu();
+  });
+  sidebarCtx.addEventListener("mouseover", (event) => {
+    const item = event.target.closest?.("[data-sidebar-act]");
+    if (!item || item.dataset.sidebarAct === "copy-menu") return;
+    hideSidebarSubmenu();
+  });
+
   /** Ordered project paths: first opened on top (bootstrap.recentProjects order). */
   function projectListItems() {
     const recent = (bootstrap?.recentProjects || []).filter(
@@ -4277,56 +4744,23 @@
       row.setAttribute("role", "treeitem");
       // Codex: chat title; 1.0.5 last-turn summary keeps the reasoning thread visible.
       const summary = String(s.lastTurnSummary || s.lastRecap || "").trim();
-      row.innerHTML =
+      const main = document.createElement("div");
+      main.className = "project-chat-main";
+      main.innerHTML =
         `<span class="project-chat-title">${escapeHtml(s.title)}</span>` +
         (summary ? `<span class="project-chat-summary">${escapeHtml(summary)}</span>` : "");
+      row.appendChild(main);
+      const spin = document.createElement("span");
+      spin.className = "busy-spin hidden";
+      spin.setAttribute("aria-hidden", "true");
+      row.appendChild(spin);
       row.title = [s.title, summary].filter(Boolean).join("\n");
       row.onclick = (ev) => {
         if (ev.target.closest("button")) return;
         void openHistorySession(s);
       };
       bindSessionDrag(row, s);
-      const actions = document.createElement("div");
-      actions.className = "row-actions";
-      const exp = document.createElement("button");
-      exp.type = "button";
-      exp.className = "mini";
-      exp.textContent = tt("exportChat", "Export");
-      exp.onclick = async (ev) => {
-        ev.stopPropagation();
-        try {
-          const mdText = await api.exportSession(s.id);
-          await api.saveExport(mdText, `${s.id.slice(0, 8)}.md`);
-          addStep("Session exported");
-        } catch (e) {
-          addMsg("error", e.message || String(e));
-        }
-      };
-      const move = document.createElement("button");
-      move.type = "button";
-      move.className = "mini";
-      move.textContent = tt("moveChat", "Move");
-      move.onclick = (ev) => {
-        ev.stopPropagation();
-        const rect = move.getBoundingClientRect();
-        showSessionMoveMenu(s, { x: rect.left, y: rect.bottom + 4 });
-      };
-      const del = document.createElement("button");
-      del.type = "button";
-      del.className = "mini";
-      del.textContent = tt("deleteChat", "Delete");
-      del.onclick = async (ev) => {
-        ev.stopPropagation();
-        if (!confirm(`Delete session ${s.title}?`)) return;
-        try {
-          await api.deleteSession(s.id);
-          void refreshHistory();
-        } catch (e) {
-          addMsg("error", e.message || String(e));
-        }
-      };
-      actions.append(exp, move, del);
-      row.appendChild(actions);
+      bindChatContextMenu(row, s);
       nest.appendChild(row);
     }
     parent.appendChild(nest);
@@ -4349,28 +4783,23 @@
         "project-chat-item recents-chat-item" +
         (s.id === activeSessionId ? " active" : "");
       const summary = String(s.lastTurnSummary || s.lastRecap || "").trim();
-      row.innerHTML =
+      const main = document.createElement("div");
+      main.className = "project-chat-main";
+      main.innerHTML =
         `<span class="project-chat-title">${escapeHtml(s.title)}</span>` +
         (summary ? `<span class="project-chat-summary">${escapeHtml(summary)}</span>` : "");
+      row.appendChild(main);
+      const spin = document.createElement("span");
+      spin.className = "busy-spin hidden";
+      spin.setAttribute("aria-hidden", "true");
+      row.appendChild(spin);
       row.title = [s.title, summary].filter(Boolean).join("\n");
       row.onclick = (event) => {
         if (event.target.closest("button")) return;
         void openHistorySession(s);
       };
       bindSessionDrag(row, s);
-      const actions = document.createElement("div");
-      actions.className = "row-actions";
-      const move = document.createElement("button");
-      move.type = "button";
-      move.className = "mini";
-      move.textContent = tt("moveChat", "Move");
-      move.onclick = (event) => {
-        event.stopPropagation();
-        const rect = move.getBoundingClientRect();
-        showSessionMoveMenu(s, { x: rect.left, y: rect.bottom + 4 });
-      };
-      actions.appendChild(move);
-      row.appendChild(actions);
+      bindChatContextMenu(row, s);
       recentsList.appendChild(row);
     }
   }
@@ -4468,6 +4897,7 @@
       b.innerHTML = `<span class="project-ico" data-icon="folder" data-icon-size="14" aria-hidden="true"></span><span class="project-name">${escapeHtml(basen(p))}</span>`;
       b.title = p;
       b.onclick = () => void openProjectTab(p);
+      bindProjectContextMenu(b, p);
       block.appendChild(b);
       // Chats under every project (Codex always lists them)
       appendNestedChats(
@@ -4491,6 +4921,7 @@
 
     mountProjectIcons(projectList);
     renderRecents();
+    paintConversationBusy();
   }
 
   function renderProjectMenu() {
@@ -5957,6 +6388,7 @@
         }
         busy = nextBusy;
         sessionTabs?.setBusy?.(sessionTabs.activeId, busy);
+        paintConversationBusy();
         if (event.state === "running" && !turnStartedAt) {
           turnStartedAt = Date.now();
           if (activityId == null && turnPhase === "idle") beginTurnActivity();
@@ -6796,6 +7228,7 @@
     turnStartedAt = Date.now();
     busy = true;
     beginTurnActivity();
+    paintConversationBusy();
     sessionTabs?.updateActive?.({
       busy: true,
       turnPhase,
@@ -7680,10 +8113,25 @@
       setPanelVisible(Boolean(hidden));
     });
   $("btnClosePanel") && ($("btnClosePanel").onclick = () => setPanelVisible(false));
-  $("btnToggleTerm") &&
-    ($("btnToggleTerm").onclick = () => {
-      setTermVisible(!isTermOpen());
-    });
+  // Custom titlebars with -webkit-app-region: drag swallow the second `click`
+  // after a layout shift (opening the dock). Chromium still delivers
+  // pointerdown, so mouse activation is handled there. Keyboard (Space/Enter)
+  // synthesizes a click with detail 0 and never sends pointerdown.
+  const termToggleButton = $("btnToggleTerm");
+  const handleTermTogglePointer = (event) => {
+    if (event.button !== 0) return;
+    event.preventDefault();
+    event.stopImmediatePropagation();
+    toggleTermVisible();
+  };
+  const handleTermToggleClick = (event) => {
+    event.preventDefault();
+    event.stopImmediatePropagation();
+    if (event.detail !== 0) return;
+    toggleTermVisible();
+  };
+  termToggleButton?.addEventListener("pointerdown", handleTermTogglePointer, { capture: true });
+  termToggleButton?.addEventListener("click", handleTermToggleClick, { capture: true });
   $("btnTermClose") && ($("btnTermClose").onclick = () => setTermVisible(false));
   function closeIdeModal() {
     $("ideModal")?.classList.add("hidden");
@@ -7892,7 +8340,8 @@
       await api.stopShell?.();
       termReady = false;
       await ensureProjectShell({ force: true });
-      $("termInput")?.focus();
+      fitPtyTerminal();
+      focusPtyTerminal();
     });
   $("btnTermPickProject") &&
     ($("btnTermPickProject").onclick = async () => {
@@ -7902,42 +8351,21 @@
         void ensureProjectShell({ force: true });
       }
     });
-  $("termInput")?.addEventListener("mousedown", (e) => {
-    e.stopPropagation();
-    $("termInput").focus();
-  });
-  $("termInput")?.addEventListener("keydown", (e) => {
-    if (e.key === "Enter") {
-      e.preventDefault();
-      void runTermLine();
-    } else if (e.key === "c" && (e.ctrlKey || e.metaKey)) {
-      // optional interrupt when input empty
-      if (!$("termInput").value) {
-        e.preventDefault();
-        void api.termInterrupt?.();
-      }
-    } else if (e.key === "l" && (e.ctrlKey || e.metaKey)) {
-      e.preventDefault();
-      clearTermBuffer();
-    }
-  });
   $("termDock")?.addEventListener("mousedown", (e) => {
-    if (e.target.closest?.("button, input")) return;
+    if (e.target.closest?.("button")) return;
     if (e.target.closest?.(".term-empty")) return;
-    if (e.target.closest?.(".term-input-row") || e.target.id === "termOut" || e.target.closest?.("#termOut")) {
-      setTimeout(() => $("termInput")?.focus(), 0);
-    }
+    setTimeout(focusPtyTerminal, 0);
   });
   api.onTermChunk?.((chunk) => {
     if (chunk.type === "start") {
-      // one-shot run: ensure dock open
-      if (!isTermOpen()) setTermVisible(true);
       if (chunk.cwd) updateTermCwdLabel(chunk.cwd);
     } else if (chunk.type === "data") {
-      if (!isTermOpen()) setTermVisible(true);
-      appendTerm(chunk.text || "");
+      // Hiding the dock is explicit user state. A still-running shell may
+      // emit a prompt or background output after Close; render it in xterm
+      // without reopening the dock over the conversation.
+      ptyTerminal?.write(String(chunk.text || ""));
     } else if (chunk.type === "end") {
-      // pure stream — no noisy exit footer for interactive shell
+      // PTY exit state is rendered directly by xterm.
     }
   });
 
@@ -8406,7 +8834,7 @@
       { id: "settings", label: "Settings", hint: "Ctrl+,", run: () => openSettings() },
       { id: "sidebar", label: "Toggle left sidebar", keywords: "projects", run: () => setSidebarVisible($("colSidebar")?.classList.contains("collapsed")) },
       { id: "panel", label: "Toggle right panel", hint: "Ctrl+P", run: () => setPanelVisible($("colEditor")?.classList.contains("collapsed")) },
-      { id: "term", label: "Toggle terminal", hint: "Ctrl+T", run: () => setTermVisible(!isTermOpen()) },
+      { id: "term", label: "Toggle terminal", hint: "Ctrl+T", run: () => toggleTermVisible() },
       { id: "theme", label: "Toggle theme", hint: "Ctrl+Shift+T", run: () => void toggleTheme() },
       { id: "history", label: "Refresh chat history", run: () => void refreshHistory() },
       { id: "ide", label: "Open IDE", run: () => $("btnOpenIde")?.click() },
@@ -8467,7 +8895,7 @@
       setSidebarVisible($("colSidebar")?.classList.contains("collapsed"));
     } else if (mod && e.key.toLowerCase() === "t" && !e.shiftKey) {
       e.preventDefault();
-      setTermVisible(!isTermOpen());
+      toggleTermVisible();
     } else if (mod && e.key.toLowerCase() === "p" && !e.shiftKey) {
       e.preventDefault();
       const hidden = $("colEditor")?.classList.contains("collapsed");
@@ -8509,7 +8937,7 @@
     } else if (cmd === "panel") {
       setPanelVisible($("colEditor")?.classList.contains("collapsed"));
     } else if (cmd === "terminal") {
-      setTermVisible(!isTermOpen());
+      toggleTermVisible();
     } else if (cmd === "connect") void connect();
     else if (cmd === "disconnect") void api.disconnect().then(() => setStatus("disconnected"));
     else if (cmd === "cancel") void api.cancel();

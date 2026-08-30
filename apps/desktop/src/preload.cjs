@@ -121,6 +121,7 @@ contextBridge.exposeInMainWorld("grokBuild", {
   runTerminal: (command, cwd) => ipcRenderer.invoke("term:run", command, cwd),
   startShell: (cwd) => ipcRenderer.invoke("term:startShell", cwd),
   writeShell: (line, cwd) => ipcRenderer.invoke("term:writeShell", line, cwd),
+  resizeTerminal: (cols, rows) => ipcRenderer.invoke("term:resize", cols, rows),
   stopShell: () => ipcRenderer.invoke("term:stopShell"),
   termStatus: () => ipcRenderer.invoke("term:status"),
   termInterrupt: () => ipcRenderer.invoke("term:interrupt"),
