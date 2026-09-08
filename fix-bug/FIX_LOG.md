@@ -12,7 +12,7 @@
   - Portable EXE 92,418,268 bytes SHA-256 `56FB79951225FDAEFB3982DAC2A50F2DEB41500F5EEA16553EF8A08E0F150873`
   - Portable ZIP 149,791,380 bytes SHA-256 `8CF46326132994E58E30BF3737E7BA0A324328B7F845697CC034A7E96DB06C14`
   - `app.asar` 4,559,119 bytes SHA-256 `ACE8C5A44CE4445704D4E2F841F3160E3E8578BE20A4285ED4284F1C04D514AC`
-- **Publication:** pending commit/push/GitHub/R2.
+- **Publication:** `main` pushed (`806039e..ea93443`). Annotated tag and GitHub Release `v0.5.53` target `ea93443fb6b700fdfa5560e519e569fe54b9ddd3` with four assets matching local sizes (Setup 92,841,380, portable EXE 92,418,268, ZIP 149,791,380, MANIFEST 2,774). Cloudflare R2 `ai-clone/version.json` reports Grok `0.5.53`; `https://dl.truong.it/ai-clone/grok-build/Grok-Build-Setup.exe` returns HTTP 200 with Content-Length 92,841,380.
 
 ## 2026-09-09 — Xem file Markdown kế hoạch/báo cáo dạng tài liệu (v0.5.52)
 
