@@ -1044,6 +1044,32 @@ try {
     blocked = true;
   }
   if (!blocked) throw new Error("outside path should fail");
+  // Relative review paths (plan.md) must resolve inside the project, not Electron cwd.
+  const relativePlan = sec.assertWorkspacePath("plan.md", {
+    workspaceRoot: rootWs,
+    allowOutside: false,
+    grokHome: path.join(os.homedir(), ".grok"),
+  });
+  if (relativePlan !== path.resolve(rootWs, "plan.md")) {
+    throw new Error(`relative plan.md resolved outside workspace: ${relativePlan}`);
+  }
+  const nestedPlan = sec.assertWorkspacePath(path.join("docs", "plan.md"), {
+    workspaceRoot: rootWs,
+    allowOutside: false,
+  });
+  if (nestedPlan !== path.resolve(rootWs, "docs", "plan.md")) {
+    throw new Error(`relative docs/plan.md resolved outside workspace: ${nestedPlan}`);
+  }
+  blocked = false;
+  try {
+    sec.assertWorkspacePath(path.join("..", "outside.txt"), {
+      workspaceRoot: rootWs,
+      allowOutside: false,
+    });
+  } catch {
+    blocked = true;
+  }
+  if (!blocked) throw new Error("relative escape should fail");
   // credential block
   blocked = false;
   try {

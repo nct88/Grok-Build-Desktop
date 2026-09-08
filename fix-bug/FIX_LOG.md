@@ -1,5 +1,19 @@
 # Fix log
 
+## 2026-09-09 — Chấp nhận plan.md không còn lỗi Path outside workspace (v0.5.53)
+
+- **Target version:** 0.5.53
+- **Yêu cầu gốc / Triệu chứng (Symptom):** Nhấn Chấp nhận `plan.md` báo `Error invoking remote method 'fs:writeText': Error: Path outside workspace is not allowed.`
+- **Nguyên nhân gốc rễ (Root Cause):** Diff/tool gửi đường dẫn tương đối (`plan.md`). `assertWorkspacePath` dùng `path.resolve` theo cwd của process Electron (thư mục app), không theo thư mục dự án. `fs:writeText` cũng không fallback sandbox explorer như `fs:readText`.
+- **Giải pháp chi tiết (Resolution):** Resolve path tương đối vào `workspaceRoot`. `../` vẫn bị chặn. Ghi Accept/Reject thử sandbox agent rồi sandbox explorer (sidebar/recents) giống đọc file.
+- **Danh sách file tác động:** `apps/desktop/src/security.cjs`, `apps/desktop/src/main.cjs`, `scripts/e2e-desktop.mjs`, version/README/CHANGELOG/`docs/releases/0.5.53.md`.
+- **Kiểm chứng (Verification Proof):** Test E2E trước sửa fail đúng `Path outside workspace is not allowed.` với `plan.md`. Sau sửa `npm run check` exit 0 (30 E2E, visual 1000×640 + 1440×900). `publish-release.ps1 -Version 0.5.53` exit 0. Artifact unsigned local candidate:
+  - Setup `Grok-Build-Setup-0.5.53.exe` 92,841,380 bytes SHA-256 `5496049DCAB0073C80F825BF650ED2F3240D0CE2BADDF32DA14FA62F720ACFE8`
+  - Portable EXE 92,418,268 bytes SHA-256 `56FB79951225FDAEFB3982DAC2A50F2DEB41500F5EEA16553EF8A08E0F150873`
+  - Portable ZIP 149,791,380 bytes SHA-256 `8CF46326132994E58E30BF3737E7BA0A324328B7F845697CC034A7E96DB06C14`
+  - `app.asar` 4,559,119 bytes SHA-256 `ACE8C5A44CE4445704D4E2F841F3160E3E8578BE20A4285ED4284F1C04D514AC`
+- **Publication:** pending commit/push/GitHub/R2.
+
 ## 2026-09-09 — Xem file Markdown kế hoạch/báo cáo dạng tài liệu (v0.5.52)
 
 - **Target version:** 0.5.52

@@ -2756,7 +2756,16 @@ app.whenReady().then(() => {
 
   /** Phase B3 — write file after accept/reject diff */
   ipcMain.handle("fs:writeText", async (_e, filePath, content) => {
-    const resolved = guardedPath(filePath, { write: true });
+    let resolved;
+    try {
+      resolved = guardedPath(filePath, { write: true });
+    } catch (first) {
+      try {
+        resolved = guardedExplorerPath(filePath, { write: true });
+      } catch {
+        throw first;
+      }
+    }
     // Cap write size (diff accept) — 8MB
     const text = String(content ?? "");
     if (text.length > 8_000_000) throw new Error("Content too large to write (max 8MB)");

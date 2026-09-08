@@ -11,6 +11,23 @@ function normalizePath(p) {
   return path.resolve(String(p || "").trim());
 }
 
+function isAbsoluteUserPath(filePath) {
+  const raw = String(filePath || "").trim();
+  if (!raw) return false;
+  if (/^[A-Za-z]:[\\/]/.test(raw)) return true;
+  if (raw.startsWith("\\\\") || raw.startsWith("//")) return true;
+  return path.isAbsolute(raw);
+}
+
+/** Resolve review/tool paths against the project folder, not Electron cwd. */
+function resolveInWorkspace(filePath, workspaceRoot) {
+  const raw = String(filePath || "").trim();
+  if (!raw) return raw;
+  if (isAbsoluteUserPath(raw)) return normalizePath(raw);
+  if (!workspaceRoot) return normalizePath(raw);
+  return path.resolve(normalizePath(workspaceRoot), raw);
+}
+
 /** Case-aware path containment (Windows). */
 function isPathInside(root, target) {
   if (!root || !target) return false;
@@ -51,18 +68,9 @@ function isCredentialPath(resolved, grokHome) {
  * @param {{ write?: boolean, allowOutside?: boolean, workspaceRoot?: string|null, extraRoots?: string[], grokHome?: string }} opts
  */
 function assertWorkspacePath(filePath, opts = {}) {
-  const resolved = normalizePath(filePath);
-  if (!resolved || resolved === path.parse(resolved).root) {
-    throw new Error("Invalid path");
-  }
   // Reject null bytes / weird control chars
   if (/[\u0000]/.test(String(filePath))) {
     throw new Error("Invalid path characters");
-  }
-
-  const grokHome = opts.grokHome || "";
-  if (isCredentialPath(resolved, grokHome)) {
-    throw new Error("Access to credential or secret files is blocked.");
   }
 
   const root = opts.workspaceRoot ? normalizePath(opts.workspaceRoot) : null;
@@ -70,6 +78,15 @@ function assertWorkspacePath(filePath, opts = {}) {
     ? opts.extraRoots.map((p) => normalizePath(p)).filter(Boolean)
     : [];
   const allowOutside = Boolean(opts.allowOutside);
+  const resolved = resolveInWorkspace(filePath, root);
+  if (!resolved || resolved === path.parse(resolved).root) {
+    throw new Error("Invalid path");
+  }
+
+  const grokHome = opts.grokHome || "";
+  if (isCredentialPath(resolved, grokHome)) {
+    throw new Error("Access to credential or secret files is blocked.");
+  }
 
   if (!root) {
     throw new Error("Open a project folder before accessing files.");
@@ -392,6 +409,8 @@ function assertSafeJobSpec(spec, workspaceRoot) {
 
 module.exports = {
   normalizePath,
+  isAbsoluteUserPath,
+  resolveInWorkspace,
   isPathInside,
   isCredentialPath,
   isMediaExtension,

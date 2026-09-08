@@ -4,6 +4,12 @@ Public, versioned changes for Grok Build Desktop.
 
 ## Unreleased
 
+## 0.5.53 — 2026-09-09
+
+- Accepting a Markdown review (`plan.md` and other relative tool paths) writes into the open project instead of failing with `Path outside workspace is not allowed.`
+
+Release details are maintained in `docs/releases/0.5.53.md`.
+
 ## 0.5.52 — 2026-09-09
 
 - Markdown plans, reports and other `.md` files now render as readable documents after the agent finishes writing them: headings, bold, tables, colored code and Mermaid diagrams instead of a raw source dump.
