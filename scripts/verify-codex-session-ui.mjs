@@ -162,6 +162,8 @@ try {
       permissionMode: "ask",
       createdAt: "2026-08-13T08:00:00.000Z",
       updatedAt: "2026-08-13T08:30:00.000Z",
+      lastTurnSummary: "Completed layout pass",
+      lastRecap: "Session restored with compact session info",
       context: {
         used: 32000,
         size: 128000,
@@ -453,6 +455,8 @@ try {
   await page.locator("#sessionInfoRows .session-info-row").first().waitFor();
   const sessionInfoGeometry = await page.locator("#menuUsage").evaluate((menu) => {
     const rect = menu.getBoundingClientRect();
+    const style = getComputedStyle(menu);
+    const actions = menu.querySelector(".usage-pop-actions");
     return {
       left: rect.left,
       right: rect.right,
@@ -460,9 +464,12 @@ try {
       bottom: rect.bottom,
       viewportWidth: innerWidth,
       viewportHeight: innerHeight,
-      horizontalOverflow: menu.scrollWidth > menu.clientWidth,
+      overflowY: style.overflowY,
+      horizontalOverflow: menu.scrollWidth > menu.clientWidth + 1,
+      verticalOverflow: menu.scrollHeight > menu.clientHeight + 1,
       rows: menu.querySelectorAll("#sessionInfoRows .session-info-row").length,
       tabs: menu.querySelectorAll("[data-session-info-tab]").length,
+      actionsHidden: Boolean(actions && getComputedStyle(actions).display === "none"),
     };
   });
   if (
@@ -471,8 +478,12 @@ try {
     sessionInfoGeometry.top < -1 ||
     sessionInfoGeometry.bottom > sessionInfoGeometry.viewportHeight + 1 ||
     sessionInfoGeometry.horizontalOverflow ||
+    sessionInfoGeometry.verticalOverflow ||
+    sessionInfoGeometry.overflowY === "auto" ||
+    sessionInfoGeometry.overflowY === "scroll" ||
     sessionInfoGeometry.rows < 12 ||
-    sessionInfoGeometry.tabs !== 3
+    sessionInfoGeometry.tabs !== 3 ||
+    !sessionInfoGeometry.actionsHidden
   ) {
     failures.push(`rich session info layout ${JSON.stringify(sessionInfoGeometry)}`);
   }
@@ -494,8 +505,25 @@ try {
     text: document.querySelector("#sessionContextDetail")?.textContent || "",
     rows: document.querySelectorAll(".js-usage-session-rows .usage-row").length,
   }));
+  const contextScroll = await page.locator("#menuUsage").evaluate((menu) => {
+    const style = getComputedStyle(menu);
+    const actions = menu.querySelector(".usage-pop-actions");
+    return {
+      overflowY: style.overflowY,
+      verticalOverflow: menu.scrollHeight > menu.clientHeight + 1,
+      actionsHidden: Boolean(actions && getComputedStyle(actions).display === "none"),
+    };
+  });
   if (!contextInfo.active || contextInfo.width <= 0 || !contextInfo.text.includes("32,000") || contextInfo.rows < 5) {
     failures.push(`session context tab ${JSON.stringify(contextInfo)}`);
+  }
+  if (
+    contextScroll.overflowY === "auto" ||
+    contextScroll.overflowY === "scroll" ||
+    contextScroll.verticalOverflow ||
+    contextScroll.actionsHidden
+  ) {
+    failures.push(`session context tab scroll ${JSON.stringify(contextScroll)}`);
   }
   await page.screenshot({ path: path.join(evidenceDir, "codex-session-context-dark-1440x900.png") });
   await page.locator("#btnUsage").click();
@@ -572,8 +600,11 @@ try {
   await page.screenshot({ path: path.join(evidenceDir, "codex-session-dark-1000x640.png") });
   await page.locator("#btnUsage").click();
   await page.locator("#menuUsage:not(.hidden)").waitFor();
+  await page.locator('[data-session-info-tab="session"]').click();
   const compactSessionInfo = await page.locator("#menuUsage").evaluate((menu) => {
     const rect = menu.getBoundingClientRect();
+    const style = getComputedStyle(menu);
+    const actions = menu.querySelector(".usage-pop-actions");
     return {
       left: rect.left,
       right: rect.right,
@@ -581,7 +612,11 @@ try {
       bottom: rect.bottom,
       viewportWidth: innerWidth,
       viewportHeight: innerHeight,
-      horizontalOverflow: menu.scrollWidth > menu.clientWidth,
+      overflowY: style.overflowY,
+      horizontalOverflow: menu.scrollWidth > menu.clientWidth + 1,
+      verticalOverflow: menu.scrollHeight > menu.clientHeight + 1,
+      rows: menu.querySelectorAll("#sessionInfoRows .session-info-row").length,
+      actionsHidden: Boolean(actions && getComputedStyle(actions).display === "none"),
     };
   });
   if (
@@ -589,7 +624,12 @@ try {
     compactSessionInfo.right > compactSessionInfo.viewportWidth + 1 ||
     compactSessionInfo.top < -1 ||
     compactSessionInfo.bottom > compactSessionInfo.viewportHeight + 1 ||
-    compactSessionInfo.horizontalOverflow
+    compactSessionInfo.horizontalOverflow ||
+    compactSessionInfo.verticalOverflow ||
+    compactSessionInfo.overflowY === "auto" ||
+    compactSessionInfo.overflowY === "scroll" ||
+    compactSessionInfo.rows < 12 ||
+    !compactSessionInfo.actionsHidden
   ) {
     failures.push(`compact session info ${JSON.stringify(compactSessionInfo)}`);
   }

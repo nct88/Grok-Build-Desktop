@@ -4,6 +4,12 @@ Public, versioned changes for Grok Build Desktop.
 
 ## Unreleased
 
+## 0.5.51 — 2026-09-08
+
+- Session info popover (Usage → Session) now sizes to the live field list instead of scrolling. Rows stay one line; Refresh/Manage billing stay on Context and Account.
+
+Release details are maintained in `docs/releases/0.5.51.md`.
+
 ## 0.5.50 — 2026-08-31
 
 - Replaced the line-mode dock with a ConPTY PowerShell terminal and xterm.js so ANSI, resize and interactive TUI input work in the project folder.

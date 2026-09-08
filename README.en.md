@@ -8,7 +8,7 @@ Grok Build Desktop is an Electron **agent desktop** powered by the **official Gr
 
 > **CLI is the core · Desktop is the interface.** Grok Build Desktop is not Grok Build IDE, is not a reskinned VS Code, and does not implement a second agent runtime.
 
-Current source version: **0.5.50** — see [`product/VERSION`](product/VERSION).
+Current source version: **0.5.51** — see [`product/VERSION`](product/VERSION).
 
 ## Downloads
 
@@ -16,12 +16,12 @@ The release is publicly available on GitHub Releases:
 
 | Package | Purpose | Download |
 |---|---|---|
-| NSIS Setup | Install on Windows with Start Menu and shortcut integration | [Grok-Build-Setup-0.5.50.exe](https://github.com/nct88/Grok-Build-Desktop/releases/download/v0.5.50/Grok-Build-Setup-0.5.50.exe) |
-| Portable EXE | Run as a self-extracting executable | [Grok-Build-0.5.50-win32-x64-portable.exe](https://github.com/nct88/Grok-Build-Desktop/releases/download/v0.5.50/Grok-Build-0.5.50-win32-x64-portable.exe) |
-| Portable ZIP | Extract once; recommended for regular use | [Grok-Build-0.5.50-win32-x64.zip](https://github.com/nct88/Grok-Build-Desktop/releases/download/v0.5.50/Grok-Build-0.5.50-win32-x64.zip) |
-| Manifest | Artifact sizes and SHA-256 values | [MANIFEST.json](https://github.com/nct88/Grok-Build-Desktop/releases/download/v0.5.50/MANIFEST.json) |
+| NSIS Setup | Install on Windows with Start Menu and shortcut integration | [Grok-Build-Setup-0.5.51.exe](https://github.com/nct88/Grok-Build-Desktop/releases/download/v0.5.51/Grok-Build-Setup-0.5.51.exe) |
+| Portable EXE | Run as a self-extracting executable | [Grok-Build-0.5.51-win32-x64-portable.exe](https://github.com/nct88/Grok-Build-Desktop/releases/download/v0.5.51/Grok-Build-0.5.51-win32-x64-portable.exe) |
+| Portable ZIP | Extract once; recommended for regular use | [Grok-Build-0.5.51-win32-x64.zip](https://github.com/nct88/Grok-Build-Desktop/releases/download/v0.5.51/Grok-Build-0.5.51-win32-x64.zip) |
+| Manifest | Artifact sizes and SHA-256 values | [MANIFEST.json](https://github.com/nct88/Grok-Build-Desktop/releases/download/v0.5.51/MANIFEST.json) |
 
-Release page: [Grok Build Desktop v0.5.50](https://github.com/nct88/Grok-Build-Desktop/releases/tag/v0.5.50).
+Release page: [Grok Build Desktop v0.5.51](https://github.com/nct88/Grok-Build-Desktop/releases/tag/v0.5.51).
 
 Windows artifacts are currently unsigned and may trigger SmartScreen on first run. Verify their SHA-256 values against `MANIFEST.json` before opening them.
 

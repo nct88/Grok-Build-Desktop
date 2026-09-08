@@ -5570,7 +5570,7 @@
   function sessionInfoRow(label, value) {
     const copy = String(value);
     return (
-      `<button type="button" class="session-info-row" data-session-copy="${escapeHtml(copy)}" title="${escapeHtml(tt("clickToCopy", "Click to copy value"))}">` +
+      `<button type="button" class="session-info-row" data-session-copy="${escapeHtml(copy)}" title="${escapeHtml(`${label}: ${copy}`)}">` +
       `<span class="session-info-row-key">${escapeHtml(label)}</span>` +
       `<span class="session-info-row-value">${escapeHtml(copy)}</span>` +
       `<span class="session-info-row-copy" data-icon="copy" data-icon-size="13" aria-hidden="true"></span>` +

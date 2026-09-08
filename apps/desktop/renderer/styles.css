@@ -1887,19 +1887,30 @@ html[data-compact="on"] .step { font-size: 12px; }
   width: min(440px, calc(100vw - 32px));
   min-width: min(360px, calc(100vw - 32px));
   max-width: min(440px, calc(100vw - 32px));
-  max-height: min(560px, calc(100vh - 104px));
+  height: max-content;
+  max-height: calc(100vh - 104px);
   padding: 0;
-  overflow: auto;
+  overflow: hidden;
+  scrollbar-width: none;
 }
-.chip-menu-usage .usage-stack { gap: 0; }
-.chip-menu-usage .usage-card { padding: 10px 12px; }
+#menuUsage::-webkit-scrollbar { display: none; width: 0; height: 0; }
+.chip-menu-usage .usage-stack {
+  gap: 0;
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: hidden;
+}
+.chip-menu-usage .usage-card { padding: 8px 10px; gap: 6px; }
+.chip-menu-usage .usage-rows { gap: 4px; }
+.chip-menu-usage .usage-row { font-size: 12px; }
 .session-info-head {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 12px;
-  min-height: 52px;
-  padding: 8px 10px 8px 12px;
+  flex: none;
+  min-height: 40px;
+  padding: 6px 10px 6px 12px;
   border-bottom: 1px solid var(--line);
 }
 .session-info-head > div:first-child {
@@ -1911,29 +1922,32 @@ html[data-compact="on"] .step { font-size: 12px; }
 .session-info-head span:not(.ui-icon) {
   color: var(--text-3);
   font-size: 10.5px;
-  overflow-wrap: anywhere;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 .session-info-head-actions { display: flex; align-items: center; gap: 4px; flex: none; }
 .chip-menu .session-info-icon,
 .chip-menu .session-info-copy-all {
   width: auto;
-  min-height: 28px;
-  padding: 5px 8px;
+  min-height: 26px;
+  padding: 4px 8px;
   justify-content: center;
   color: var(--text-2);
 }
-.chip-menu .session-info-icon { width: 28px; padding: 0; }
+.chip-menu .session-info-icon { width: 26px; padding: 0; }
 .session-info-tabs {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
   gap: 4px;
-  padding: 6px 8px;
+  flex: none;
+  padding: 4px 8px;
   border-bottom: 1px solid var(--line);
 }
 .chip-menu .session-info-tab {
   justify-content: center;
-  min-height: 30px;
-  padding: 5px 8px;
+  min-height: 26px;
+  padding: 4px 8px;
   color: var(--text-3);
   font-size: 11.5px;
 }
@@ -1942,25 +1956,36 @@ html[data-compact="on"] .step { font-size: 12px; }
   background: var(--hover-strong);
 }
 .session-info-panel { display: none; min-width: 0; }
-.session-info-panel.active { display: grid; gap: 10px; padding: 10px; }
-.session-info-rows { display: grid; gap: 2px; }
+.session-info-panel.active { display: grid; gap: 6px; padding: 6px 8px; min-height: 0; }
+.session-info-rows { display: grid; gap: 0; min-height: 0; }
 .chip-menu .session-info-row {
   width: 100%;
-  min-height: 36px;
+  height: 26px;
+  min-height: 26px;
+  max-height: 26px;
   display: grid;
   grid-template-columns: minmax(112px, .42fr) minmax(0, 1fr) 16px;
   align-items: center;
-  gap: 10px;
-  padding: 7px 8px;
+  gap: 8px;
+  padding: 0 8px;
   border-radius: var(--radius);
   text-align: left;
+  overflow: hidden;
 }
-.session-info-row-key { color: var(--text-3); font-size: 11.5px; }
+.session-info-row-key {
+  color: var(--text-3);
+  font-size: 11.5px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
 .session-info-row-value {
   min-width: 0;
   color: var(--text);
   font: 500 11.5px/1.35 var(--mono);
-  overflow-wrap: anywhere;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 .session-info-row-copy { color: var(--text-3); opacity: 0; transition: opacity .12s; }
 .session-info-row:hover .session-info-row-copy,
@@ -1970,10 +1995,14 @@ html[data-compact="on"] .step { font-size: 12px; }
 .usage-pop-actions {
   display: flex;
   flex-wrap: wrap;
+  flex: none;
   gap: 6px;
-  padding: 8px 10px;
+  padding: 6px 10px;
   margin-top: 0;
   border-top: 1px solid var(--line);
+}
+#menuUsage:has([data-session-info-panel="session"].active) .usage-pop-actions {
+  display: none;
 }
 .chip-menu .usage-pop-actions button { width: auto; }
 @media (max-width: 520px) {
