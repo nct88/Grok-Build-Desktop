@@ -1,5 +1,19 @@
 # Fix log
 
+## 2026-09-09 — Xem file Markdown kế hoạch/báo cáo dạng tài liệu (v0.5.52)
+
+- **Target version:** 0.5.52
+- **Yêu cầu gốc / Triệu chứng (Symptom):** File `.md` (plan, báo cáo) hiện như diff/mã nguồn xanh-đỏ, không đọc được bảng, tiêu đề, in đậm, code màu hay sơ đồ sau khi Grok viết xong.
+- **Nguyên nhân gốc rễ (Root Cause):** Timeline tool card và review pane luôn vẽ unified diff; cửa sổ Tệp luôn highlight source. Renderer Markdown chỉ dùng cho câu trả lời chat, không áp vào nội dung file `.md`.
+- **Giải pháp chi tiết (Resolution):** Tool ghi `.md` khi hoàn tất hiện tài liệu đã dựng (bảng, heading màu, code highlight, Mermaid flowchart/sequence), kèm nút Diff. Cửa sổ Tệp mặc định Preview cho Markdown; review có nút Tài liệu. Không tắt preference Preview khi mở file khác.
+- **Danh sách file tác động:** `apps/desktop/renderer/lib/markdown.js`, `syntaxHighlight.js`, `offthread.js`, `timelineView.js`, `workers/contentWorker.js`, `app.js`, `index.html`, `styles.css`, `i18n.js`; `scripts/e2e-desktop.mjs`, `test-syntax-highlight.mjs`, `verify-codex-session-ui.mjs`, `verify-project-explorer.mjs`; version/README/CHANGELOG/`docs/releases/0.5.52.md`.
+- **Kiểm chứng (Verification Proof):** `npm run check` exit 0. Architecture/packaging/brand/release OK. 30 E2E passed. Visual 1000×640 + 1440×900, session UI tools=3 với plan.md đã dựng, explorer Preview `plan.md` có h1/table/diagram/code màu. `publish-release.ps1 -Version 0.5.52` exit 0. Artifact unsigned local candidate:
+  - Setup `Grok-Build-Setup-0.5.52.exe` 92,840,495 bytes SHA-256 `D0E6F8B455D762419924BD0FA2078E9E462FF805F11BACE101E3C2E7D2EC8906`
+  - Portable EXE 92,417,463 bytes SHA-256 `F1CAD20BE858921A8DD8A0949F17A9703060FD7968E251A24D7FEFED158CD89A`
+  - Portable ZIP 149,791,219 bytes SHA-256 `80A0ABF1092B7D4F36283BCE3E83723E073D7AFF7D04A437F2E1CF0D6C906137`
+  - `app.asar` 4,558,257 bytes SHA-256 `CFAD42DCD81569276CA128B75081CB66C13C7E0D50FE46BA314DF8E613CD256C`
+- **Publication:** pending commit/push/GitHub/R2.
+
 ## 2026-09-08 — Menu Thông tin phiên → Phiên không còn thanh cuộn (v0.5.51)
 
 - **Target version:** 0.5.51
