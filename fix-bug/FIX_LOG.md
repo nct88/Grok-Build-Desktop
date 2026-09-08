@@ -1,5 +1,18 @@
 # Fix log
 
+## 2026-09-08 — Menu Thông tin phiên → Phiên không còn thanh cuộn (v0.5.51)
+
+- **Target version:** 0.5.51
+- **Yêu cầu gốc / Triệu chứng (Symptom):** Menu usage (Thông tin phiên → Phiên) có thanh cuộn. Số hàng đổi theo tài khoản nên popup cần co giãn theo nội dung, không cuộn.
+- **Nguyên nhân gốc rễ (Root Cause):** `#menuUsage` dùng `max-height` cố định (`560px`/`800px`) và `overflow: auto`. Hàng phiên `min-height` 34–36px, giá trị wrap (`overflow-wrap: anywhere`), cộng footer Refresh/Manage billing, nên 11–16 hàng vượt max-height.
+- **Giải pháp chi tiết (Resolution):** Popup `height: max-content`, `max-height: calc(100vh - 104px)`, `overflow: hidden`. Hàng phiên cao 26px, một dòng, ellipsis. Footer billing chỉ hiện ở tab Ngữ cảnh/Tài khoản. Visual gate bắt `overflowY !== auto|scroll` và `scrollHeight <= clientHeight` ở 1440×900 và 1000×640.
+- **Danh sách file tác động:** `apps/desktop/renderer/styles.css`, `apps/desktop/renderer/app.js`, `scripts/verify-codex-session-ui.mjs`, `product/VERSION`, `package.json`, `apps/desktop/package.json`, `package-lock.json`, `CHANGELOG.md`, `docs/releases/0.5.51.md`, `README.md`, `README.en.md`.
+- **Kiểm chứng (Verification Proof):** `npm run check` exit 0. Architecture/packaging/brand/release OK. 30 E2E passed. Visual 1000×640 + 1440×900, session-info 16 hàng, `overflowY: hidden`, không vertical overflow. `publish-release.ps1 -Version 0.5.51` exit 0. Artifact unsigned local candidate:
+  - Setup `Grok-Build-Setup-0.5.51.exe` 92,835,860 bytes SHA-256 `B446C666629CE65BF57DA2F50F008B370313FE51BCB0844432B5B3503D8AAA9F`
+  - Portable EXE 92,412,844 bytes SHA-256 `BBC9E1F9DFDD8AEB5512A21EBC5579C70559509D21B05225DDF03EE65B116153`
+  - Portable ZIP 149,785,231 bytes SHA-256 `7C4387562B79CAD34DD22B9F441333857E660339DC63E5C7DA414C42CD968D45`
+  - `app.asar` 4,531,660 bytes SHA-256 `1482CE49DFD26E4B920A50579851BC63208FC06AC4F5D8DD827B50930A959717`
+
 ## 2026-08-31 — Phát hành Grok Build Desktop 0.5.50
 
 - **Target version:** 0.5.50
