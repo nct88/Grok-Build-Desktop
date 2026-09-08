@@ -12,6 +12,7 @@
   - Portable EXE 92,412,844 bytes SHA-256 `BBC9E1F9DFDD8AEB5512A21EBC5579C70559509D21B05225DDF03EE65B116153`
   - Portable ZIP 149,785,231 bytes SHA-256 `7C4387562B79CAD34DD22B9F441333857E660339DC63E5C7DA414C42CD968D45`
   - `app.asar` 4,531,660 bytes SHA-256 `1482CE49DFD26E4B920A50579851BC63208FC06AC4F5D8DD827B50930A959717`
+- **Publication:** `main` pushed (`3106007..62e1850`). Annotated tag and GitHub Release `v0.5.51` target `62e18508213feb89956347f2926fc2f89adb616a` with four assets matching local sizes (Setup 92,835,860, portable EXE 92,412,844, ZIP 149,785,231, MANIFEST 2,774). Cloudflare R2 `ai-clone/version.json` reports Grok `0.5.51`; `https://dl.truong.it/ai-clone/grok-build/Grok-Build-Setup.exe` returns HTTP 200.
 
 ## 2026-08-31 — Phát hành Grok Build Desktop 0.5.50
 
