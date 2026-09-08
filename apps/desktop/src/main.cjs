@@ -2060,6 +2060,15 @@ app.whenReady().then(() => {
       return { ok: false, current, update: false, message: "Invalid feed data." };
     }
 
+    // 0. AI-Clone multi-tool version.json format (e.g. dl.truong.it/ai-clone/version.json)
+    if (data.grok && typeof data.grok === "object") {
+      data = {
+        version: data.grok.version,
+        url: data.grok.downloadUrl,
+        notes: data.grok.changelog || "",
+      };
+    }
+
     // 1. GitHub Releases API format
     if (data.tag_name || (Array.isArray(data.assets) && data.html_url)) {
       const rawTag = String(data.tag_name || data.name || "").trim();
@@ -2173,6 +2182,29 @@ app.whenReady().then(() => {
       return { ...parseUpdateFeedData(data, current), source: isDefaultFeed ? "github" : "remote" };
     } catch (e) {
       if (isDefaultFeed) {
+        // Fallback 1: Try AI-Clone R2 version.json
+        try {
+          const r2Url = `https://dl.truong.it/ai-clone/version.json?_t=${Date.now()}`;
+          const r2Res = await fetch(r2Url, {
+            headers: {
+              Accept: "application/json",
+              "User-Agent": `Grok-Build-Desktop/${current}`,
+              "Cache-Control": "no-cache",
+            },
+          });
+          if (r2Res.ok) {
+            const r2Text = stripBom(await r2Res.text());
+            const r2Data = JSON.parse(r2Text);
+            const parsed = parseUpdateFeedData(r2Data, current);
+            if (parsed.ok) {
+              return { ...parsed, source: "r2" };
+            }
+          }
+        } catch {
+          // ignore R2 fallback error
+        }
+
+        // Fallback 2: Local update feed
         const local = resolveLocalUpdateFeedPath();
         if (local) {
           try {
