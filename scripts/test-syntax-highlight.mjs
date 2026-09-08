@@ -40,5 +40,8 @@ assert.ok(json.some((token) => token.type === "literal" && token.text === "true"
 const hostile = '<img src=x onerror="globalThis.pwned=true">';
 const markup = syntax.tokenize(hostile, "markup");
 assert.equal(markup.map((token) => token.text).join(""), hostile, "tokenization must preserve source exactly");
+assert.equal(syntax.languageForFence("js").id, "javascript");
+assert.equal(syntax.languageForFence("Python").id, "python");
+assert.equal(syntax.languageForFence("unknown-lang").id, "plain");
 
 console.log(`Syntax highlighting: ${languages.size} language mappings and token classes passed.`);

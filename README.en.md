@@ -8,7 +8,7 @@ Grok Build Desktop is an Electron **agent desktop** powered by the **official Gr
 
 > **CLI is the core · Desktop is the interface.** Grok Build Desktop is not Grok Build IDE, is not a reskinned VS Code, and does not implement a second agent runtime.
 
-Current source version: **0.5.51** — see [`product/VERSION`](product/VERSION).
+Current source version: **0.5.52** — see [`product/VERSION`](product/VERSION).
 
 ## Downloads
 
@@ -16,12 +16,12 @@ The release is publicly available on GitHub Releases:
 
 | Package | Purpose | Download |
 |---|---|---|
-| NSIS Setup | Install on Windows with Start Menu and shortcut integration | [Grok-Build-Setup-0.5.51.exe](https://github.com/nct88/Grok-Build-Desktop/releases/download/v0.5.51/Grok-Build-Setup-0.5.51.exe) |
-| Portable EXE | Run as a self-extracting executable | [Grok-Build-0.5.51-win32-x64-portable.exe](https://github.com/nct88/Grok-Build-Desktop/releases/download/v0.5.51/Grok-Build-0.5.51-win32-x64-portable.exe) |
-| Portable ZIP | Extract once; recommended for regular use | [Grok-Build-0.5.51-win32-x64.zip](https://github.com/nct88/Grok-Build-Desktop/releases/download/v0.5.51/Grok-Build-0.5.51-win32-x64.zip) |
-| Manifest | Artifact sizes and SHA-256 values | [MANIFEST.json](https://github.com/nct88/Grok-Build-Desktop/releases/download/v0.5.51/MANIFEST.json) |
+| NSIS Setup | Install on Windows with Start Menu and shortcut integration | [Grok-Build-Setup-0.5.52.exe](https://github.com/nct88/Grok-Build-Desktop/releases/download/v0.5.52/Grok-Build-Setup-0.5.52.exe) |
+| Portable EXE | Run as a self-extracting executable | [Grok-Build-0.5.52-win32-x64-portable.exe](https://github.com/nct88/Grok-Build-Desktop/releases/download/v0.5.52/Grok-Build-0.5.52-win32-x64-portable.exe) |
+| Portable ZIP | Extract once; recommended for regular use | [Grok-Build-0.5.52-win32-x64.zip](https://github.com/nct88/Grok-Build-Desktop/releases/download/v0.5.52/Grok-Build-0.5.52-win32-x64.zip) |
+| Manifest | Artifact sizes and SHA-256 values | [MANIFEST.json](https://github.com/nct88/Grok-Build-Desktop/releases/download/v0.5.52/MANIFEST.json) |
 
-Release page: [Grok Build Desktop v0.5.51](https://github.com/nct88/Grok-Build-Desktop/releases/tag/v0.5.51).
+Release page: [Grok Build Desktop v0.5.52](https://github.com/nct88/Grok-Build-Desktop/releases/tag/v0.5.52).
 
 Windows artifacts are currently unsigned and may trigger SmartScreen on first run. Verify their SHA-256 values against `MANIFEST.json` before opening them.
 
@@ -48,7 +48,7 @@ Grok Build Desktop (Electron)
 
 ### Conversations and agents
 
-- Streams responses with Markdown, thinking, plans and tool state.
+- Streams responses with Markdown, thinking, plans and tool state. `.md` files (plans, reports) render as readable documents after the agent finishes writing them.
 - Groups tool calls while keeping the final answer below tool activity.
 - Select model, reasoning effort, mode and permission policy directly in the composer.
 - Grok CLI slash commands run from the composer, including session (`/new`, `/resume`, `/fork`, `/quit`, `/home`), model (`/model`, `/effort`, `/plan`), MCP/trust (`/mcps`, `/hooks-trust`), memory/workflow (`/remember`, `/loop`, `/goal`) and Settings (`/settings`, `/theme`, `/privacy`).

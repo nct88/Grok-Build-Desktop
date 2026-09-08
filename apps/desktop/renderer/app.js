@@ -30,6 +30,8 @@
   const reviewList = $("reviewList");
   const fileTree = $("fileTree");
   const editorBody = $("editorBody");
+  const mdPreview = $("mdPreview");
+  const mdDocView = $("mdDocView");
   const editorPath = $("editorPath");
   const editorRelativePath = $("editorRelativePath");
   const editorLanguage = $("editorLanguage");
@@ -136,6 +138,8 @@
   /** @type {{ path?: string, oldText?: string, newText?: string } | null} */
   let activeDiff = null;
   let diffSideBySide = false;
+  let reviewDocView = false;
+  let fileMarkdownPreview = true;
 
   /** Cache local file → { url, path, mimeType, kind } for timeline media preview */
   const mediaSrcCache = new Map();
@@ -1986,6 +1990,27 @@
     if (newEl) newEl.textContent = change.newText ?? "";
   }
 
+  function setReviewDocView(enabled) {
+    const markdownFile = Boolean(md?.isMarkdownPath?.(activeDiff?.path) && activeDiff?.newText != null);
+    reviewDocView = Boolean(enabled) && markdownFile;
+    const panel = $("panelReview");
+    const btn = $("btnDiffDoc");
+    panel?.classList.toggle("doc-view", reviewDocView);
+    if (reviewDocView) panel?.classList.remove("has-hunks");
+    else if (activeDiff?.hunks?.length && !diffSideBySide) panel?.classList.add("has-hunks");
+    if (btn) {
+      btn.classList.toggle("hidden", !markdownFile);
+      btn.setAttribute("aria-pressed", reviewDocView ? "true" : "false");
+      btn.textContent = reviewDocView ? tt("diffPreview", "Diff preview") : tt("mdDocument", "Document");
+      btn.title = reviewDocView
+        ? tt("toggleMdSource", "Show Markdown source")
+        : tt("toggleMdPreview", "Show rendered Markdown");
+    }
+    if (reviewDocView && mdDocView && activeDiff?.newText != null) {
+      paintMarkdownInto(mdDocView, activeDiff.newText);
+    }
+  }
+
   function setDiffMode(side) {
     diffSideBySide = Boolean(side);
     $("diffBody")?.classList.toggle("hidden", diffSideBySide);
@@ -2129,13 +2154,16 @@
       paintDiffSide(change);
       setDiffMode(diffSideBySide);
       renderHunkList();
+      const preferDoc = md?.isMarkdownPath?.(change.path) && change.view !== "diff";
+      setReviewDocView(preferDoc);
       // Hunk cards = primary; full file only when no hunks / side-by-side requested
-      if (hunkN > 0 && !diffSideBySide) panel?.classList.add("has-hunks");
+      if (hunkN > 0 && !diffSideBySide && !preferDoc) panel?.classList.add("has-hunks");
       else panel?.classList.remove("has-hunks");
     } else {
       if (toolbar) toolbar.classList.add("hidden");
       $("hunkList")?.classList.add("hidden");
       panel?.classList.remove("has-hunks");
+      setReviewDocView(false);
       void openInEditor(change.path);
       switchPanel("files");
     }
@@ -2556,6 +2584,47 @@
     return language;
   }
 
+  function paintMarkdownInto(el, source) {
+    if (!el) return;
+    const text = String(source ?? "");
+    el.classList.add("md-body", "md-structured");
+    if (globalThis.GrokOffthread?.renderMarkdownHtml) {
+      el.textContent = text.slice(0, 4000);
+      globalThis.GrokOffthread.renderMarkdownHtml(text).then((html) => {
+        if (!el.isConnected) return;
+        globalThis.GrokOffthread.applyStructuredHtml(el, html, (href) => api.openExternal?.(href));
+      });
+      return;
+    }
+    if (md?.setStructuredContent) md.setStructuredContent(el, text, (href) => api.openExternal?.(href));
+    else el.textContent = text;
+  }
+
+  function setFileMarkdownMode(preview, persist = false) {
+    const markdownFile = md?.isMarkdownPath?.(selectedFilePath);
+    if (markdownFile && preview != null) fileMarkdownPreview = Boolean(preview);
+    const showDoc = Boolean(markdownFile && fileMarkdownPreview);
+    const btn = $("btnMdMode");
+    if (btn) {
+      btn.classList.toggle("hidden", !markdownFile);
+      btn.setAttribute("aria-pressed", showDoc ? "true" : "false");
+      btn.textContent = showDoc
+        ? tt("mdSource", "Source")
+        : tt("mdPreview", "Preview");
+      btn.title = showDoc
+        ? tt("toggleMdSource", "Show Markdown source")
+        : tt("toggleMdPreview", "Show rendered Markdown");
+    }
+    if (!markdownFile) {
+      mdPreview?.classList.add("hidden");
+      editorBody?.classList.remove("hidden");
+      return;
+    }
+    editorBody?.classList.toggle("hidden", showDoc);
+    mdPreview?.classList.toggle("hidden", !showDoc);
+    if (persist) saveLayout({ fileMarkdownPreview });
+  }
+
   function resetFilePreview(message) {
     selectedFilePath = "";
     if (editorPath) {
@@ -2574,6 +2643,9 @@
     }
     editorBody?.classList.add("hidden");
     editorBody?.classList.remove("preview-error", "highlight-limited");
+    mdPreview?.classList.add("hidden");
+    mdPreview?.replaceChildren();
+    $("btnMdMode")?.classList.add("hidden");
     if (editorBody) editorBody.title = "";
     editorBody?.querySelector("code")?.replaceChildren();
     document.querySelectorAll(".explorer-row.selected").forEach((row) => row.classList.remove("selected"));
@@ -2601,10 +2673,14 @@
     }
     setLanguageBadge(filePath);
     if (filePreviewEmpty) filePreviewEmpty.classList.add("hidden");
-    editorBody?.classList.remove("hidden");
     editorBody?.classList.remove("preview-error", "highlight-limited");
+    const markdownFile = Boolean(md?.isMarkdownPath?.(filePath));
+    const showDoc = markdownFile && fileMarkdownPreview && !line;
+    editorBody?.classList.toggle("hidden", showDoc);
+    mdPreview?.classList.toggle("hidden", !showDoc);
     const code = editorBody?.querySelector("code");
     if (code) code.textContent = tt("loadingFile", "Loading file…");
+    if (showDoc && mdPreview) mdPreview.textContent = tt("loadingFile", "Loading file…");
     try {
       const res = await api.readText(filePath);
       // Ignore a slower read after the user selected another file.
@@ -2618,6 +2694,12 @@
       editorBody.title = result?.limited
         ? tt("highlightLimited", "Syntax colors are disabled for very large files to keep the preview responsive.")
         : "";
+      if (markdownFile) {
+        paintMarkdownInto(mdPreview, res.content);
+        setFileMarkdownMode(fileMarkdownPreview && !line);
+      } else {
+        setFileMarkdownMode(null);
+      }
       if (line) {
         requestAnimationFrame(() => {
           code?.querySelector(`.code-line:nth-child(${Math.max(1, Number(line) || 1)})`)?.scrollIntoView?.({ block: "center" });
@@ -2626,7 +2708,10 @@
     } catch (e) {
       if (String(filePath || "") !== selectedFilePath) return;
       if (code) code.textContent = e?.message || String(e);
+      if (mdPreview) mdPreview.textContent = e?.message || String(e);
       editorBody?.classList.add("preview-error");
+      editorBody?.classList.remove("hidden");
+      mdPreview?.classList.add("hidden");
     }
   }
 
@@ -7969,6 +8054,7 @@
     workbench?.classList.toggle("preview-collapsed", Boolean(L.filePreviewCollapsed) && !L.fileExplorerCollapsed);
     setFileExplorerWidth(L.fileExplorerWidth || defaultFileExplorerWidth(), false);
     setFilePreviewWrap(L.filePreviewWrap !== false, false);
+    fileMarkdownPreview = L.fileMarkdownPreview !== false;
     updateFilePaneControls();
     setSidebarVisible(L.sidebarVisible !== false);
     setPanelVisible(L.panelVisible !== false);
@@ -8066,6 +8152,7 @@
   };
 
   $("btnDiffSide") && ($("btnDiffSide").onclick = () => setDiffMode(!diffSideBySide));
+  $("btnDiffDoc") && ($("btnDiffDoc").onclick = () => setReviewDocView(!reviewDocView));
   $("btnDiffAccept") && ($("btnDiffAccept").onclick = () => void acceptDiff());
   $("btnDiffReject") && ($("btnDiffReject").onclick = () => void rejectDiff());
   $("btnCmdK") && ($("btnCmdK").onclick = () => cmdPalette?.toggle?.());
@@ -8088,6 +8175,18 @@
   $("btnToggleWrap")?.addEventListener("click", () => {
     const isNoWrap = $("editorBody")?.classList.contains("no-wrap");
     setFilePreviewWrap(Boolean(isNoWrap), true);
+  });
+  $("btnMdMode")?.addEventListener("click", () => {
+    if (!md?.isMarkdownPath?.(selectedFilePath)) return;
+    const next = !fileMarkdownPreview;
+    setFileMarkdownMode(next, true);
+    if (next && mdPreview && !mdPreview.querySelector(".md-h, table, .md-p, .md-diagram")) {
+      const code = editorBody?.querySelector("code");
+      const source = [...(code?.querySelectorAll(".code-line-content") || [])]
+        .map((line) => line.textContent || "")
+        .join("\n") || code?.textContent || "";
+      if (source) paintMarkdownInto(mdPreview, source);
+    }
   });
   $("btnTogglePreview")?.addEventListener("click", () => {
     const collapsed = $("panelFiles")?.querySelector(".file-workbench")?.classList.contains("preview-collapsed");

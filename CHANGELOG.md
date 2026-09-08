@@ -4,6 +4,13 @@ Public, versioned changes for Grok Build Desktop.
 
 ## Unreleased
 
+## 0.5.52 — 2026-09-09
+
+- Markdown plans, reports and other `.md` files now render as readable documents after the agent finishes writing them: headings, bold, tables, colored code and Mermaid diagrams instead of a raw source dump.
+- File preview defaults to the rendered document for Markdown, with a Source toggle. The review pane can switch between the document and the diff.
+
+Release details are maintained in `docs/releases/0.5.52.md`.
+
 ## 0.5.51 — 2026-09-08
 
 - Session info popover (Usage → Session) now sizes to the live field list instead of scrolling. Rows stay one line; Refresh/Manage billing stay on Context and Account.

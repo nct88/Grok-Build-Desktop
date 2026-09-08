@@ -239,11 +239,16 @@ try {
     { type: "thought_delta", messageId: "thought-3", text: "Giảm card chrome, giữ nội dung trung tâm hẹp và tách hai pane phụ bằng tương phản bề mặt nhẹ." },
     { type: "tool", toolCallId: "tool-2", title: "Cập nhật giao diện Desktop", status: "running", kind: "edit", locations: [{ path: "apps/desktop/renderer/styles.css", line: 1 }] },
     { type: "tool_update", toolCallId: "tool-2", title: "Cập nhật giao diện Desktop", status: "completed", kind: "edit", locations: [{ path: "apps/desktop/renderer/styles.css", line: 1 }], detail: "Timeline density · panel surfaces · floating composer" },
+    { type: "tool", toolCallId: "tool-3", title: "Write plan.md", status: "completed", kind: "edit", diffs: [{
+      path: "docs/plan.md",
+      oldText: "",
+      newText: "# Kế hoạch\n\n## Khả thi\n\n| Cách | Kết quả |\n|---|---|\n| OpenVPN | Có |\n\n**Sẵn sàng**\n\n```js\nconst ok = true;\n```\n\n```mermaid\nflowchart TD\n  A[User] --> B[VPN]\n```\n",
+    }] },
     { type: "assistant_delta", messageId: "answer-2", text: "Timeline hiện dùng các hàng reasoning/tool có thể mở, user bubble nhỏ lệch phải và composer nổi nhẹ ở đáy giống nhịp thị giác của Codex." },
     { type: "turn_complete", stopReason: "end_turn" },
     { type: "state", state: "connected", detail: "Ready" },
   ]);
-  await page.waitForTimeout(500);
+  await page.waitForFunction(() => Boolean(document.querySelector(".cli-md-preview h1.md-h1") && document.querySelector(".cli-md-preview table") && document.querySelector(".cli-md-preview .md-diagram")));
 
   const wide = await page.evaluate(() => {
     const rect = (selector) => {
@@ -293,6 +298,11 @@ try {
         headingCount: answers.reduce((count, node) => count + node.querySelectorAll(".md-h").length, 0),
         tableCount: answers.reduce((count, node) => count + node.querySelectorAll("table").length, 0),
         rawSyntaxVisible: answers.some((node) => /\*\*reasoning summary\*\*|## Kiểm tra hiển thị|\| Mục \| Trạng thái \|/.test(node.textContent || "")),
+        planHeading: document.querySelector(".cli-md-preview h1.md-h1")?.textContent || "",
+        planTable: Boolean(document.querySelector(".cli-md-preview table")),
+        planDiagram: Boolean(document.querySelector(".cli-md-preview .md-diagram")),
+        planCode: Boolean(document.querySelector(".cli-md-preview .tok-keyword")),
+        planRawHeading: /## Khả thi/.test(document.querySelector(".cli-md-preview")?.textContent || ""),
       },
       tableFrame: (() => {
         const wrap = document.querySelector(".md-table-wrap");
@@ -347,6 +357,11 @@ try {
     wide.markdown.headingCount < 1 ||
     wide.markdown.tableCount < 1 ||
     wide.markdown.rawSyntaxVisible
+    || wide.markdown.planHeading.trim() !== "Kế hoạch"
+    || !wide.markdown.planTable
+    || !wide.markdown.planDiagram
+    || !wide.markdown.planCode
+    || wide.markdown.planRawHeading
   ) failures.push(`final answers did not remain structured Markdown ${JSON.stringify(wide.markdown)}`);
   if (
     !wide.tableFrame ||

@@ -39,6 +39,33 @@ await writeFile(
 );
 await writeFile(path.join(fixtureRoot, "styles", "app.css"), ".panel { color: #f5f5f5; display: grid; }\n");
 await writeFile(path.join(fixtureRoot, "README.md"), "# Project explorer fixture\n\nChoose a source file.\n");
+await writeFile(
+  path.join(fixtureRoot, "plan.md"),
+  [
+    "# Kế hoạch Dedicated IP",
+    "",
+    "## Khả thi",
+    "",
+    "| Cách | Kết quả |",
+    "|---|---|",
+    "| Dedicated IP | Không |",
+    "| OpenVPN | Có |",
+    "",
+    "**Không khả thi** nếu chỉ Dedicated IP.",
+    "",
+    "```js",
+    "const ready = true;",
+    "```",
+    "",
+    "```mermaid",
+    "flowchart TD",
+    "  A[User] --> B{Dedicated IP?}",
+    "  B -->|Yes| C[Block]",
+    "  B -->|No| D[OpenVPN]",
+    "```",
+    "",
+  ].join("\n"),
+);
 await writeFile(path.join(fixtureRoot, "package.json"), '{"name":"explorer-fixture","private":true}\n');
 await writeFile(path.join(fixtureRoot, ".project-memory", "STATE.md"), "# State\n\nExplorer fixture.\n");
 await writeFile(
@@ -127,6 +154,49 @@ try {
   assert.notEqual(typical.number, typical.keyword);
   await page.screenshot({ path: path.join(evidenceDir, "project-explorer-dark-1904x1000.png") });
   await page.locator("#panelFiles").screenshot({ path: path.join(evidenceDir, "project-explorer-dark-detail.png") });
+
+  await page.locator(".explorer-row.file").filter({ hasText: "plan.md" }).click();
+  await page.waitForFunction(() => {
+    const preview = document.querySelector("#mdPreview");
+    return Boolean(
+      preview
+      && !preview.classList.contains("hidden")
+      && preview.querySelector("h1.md-h1")
+      && preview.querySelector("table")
+      && preview.querySelector("strong")
+      && preview.querySelector(".md-diagram")
+      && preview.querySelector(".code-card .tok-keyword"),
+    );
+  });
+  const markdownDoc = await page.evaluate(() => {
+    const preview = document.querySelector("#mdPreview");
+    const heading = preview?.querySelector("h1.md-h1");
+    const table = preview?.querySelector("table");
+    return {
+      previewHidden: preview?.classList.contains("hidden"),
+      editorHidden: document.querySelector("#editorBody")?.classList.contains("hidden"),
+      heading: heading?.textContent || "",
+      headingColor: heading ? getComputedStyle(heading).color : "",
+      tableText: table?.innerText || "",
+      diagram: Boolean(preview?.querySelector(".md-diagram svg")),
+      codeKeyword: Boolean(preview?.querySelector(".code-card .tok-keyword")),
+      rawHeadingVisible: /## Khả thi/.test(preview?.textContent || ""),
+      modeLabel: document.querySelector("#btnMdMode")?.textContent || "",
+    };
+  });
+  assert.equal(markdownDoc.previewHidden, false, JSON.stringify(markdownDoc));
+  assert.equal(markdownDoc.editorHidden, true, "markdown preview should hide source");
+  assert.match(markdownDoc.heading, /Kế hoạch Dedicated IP/);
+  assert.match(markdownDoc.tableText, /OpenVPN/);
+  assert.equal(markdownDoc.diagram, true);
+  assert.equal(markdownDoc.codeKeyword, true);
+  assert.equal(markdownDoc.rawHeadingVisible, false);
+  assert.notEqual(markdownDoc.headingColor, "");
+  await page.locator("#panelFiles").screenshot({ path: path.join(evidenceDir, "markdown-document-preview-dark.png") });
+  await page.locator("#btnMdMode").click();
+  await page.waitForFunction(() => !document.querySelector("#editorBody")?.classList.contains("hidden"));
+  await rustRow.click();
+  await page.waitForFunction(() => document.querySelector("#editorLanguage")?.textContent === "Rust");
 
   await page.locator(".explorer-row.directory").filter({ hasText: "empty" }).click();
   await page.waitForFunction(() => Array.from(document.querySelectorAll(".explorer-state")).some((node) => node.textContent?.includes("Empty folder")));

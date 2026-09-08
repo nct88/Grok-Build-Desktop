@@ -81,8 +81,9 @@ function renderMarkdown(source) {
         index += 1;
       }
       if (index < lines.length) index += 1;
+      const lang = language.trim();
       parts.push(
-        `<pre class="md-code"${language ? ` data-lang="${escapeText(language)}"` : ""}><code>${escapeText(body.join("\n"))}</code></pre>`,
+        `<pre class="md-code"${lang ? ` data-lang="${escapeText(lang)}"` : ""}><code>${escapeText(body.join("\n"))}</code></pre>`,
       );
       continue;
     }
@@ -90,7 +91,7 @@ function renderMarkdown(source) {
     if (heading) {
       const level = heading[1].length;
       parts.push(
-        `<h${level} class="md-h">${renderInline(heading[2].replace(/\s+#+\s*$/, ""))}</h${level}>`,
+        `<h${level} class="md-h md-h${level}">${renderInline(heading[2].replace(/\s+#+\s*$/, ""))}</h${level}>`,
       );
       index += 1;
       continue;

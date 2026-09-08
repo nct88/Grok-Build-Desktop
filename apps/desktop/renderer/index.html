@@ -354,6 +354,7 @@
                   </div>
                   <div class="file-preview-actions">
                     <span class="language-badge hidden" id="editorLanguage"></span>
+                    <button id="btnMdMode" class="explorer-action md-mode-btn hidden" type="button" data-i18n="mdPreview" data-i18n-title="toggleMdPreview" data-i18n-aria="toggleMdPreview" title="Show rendered Markdown" aria-label="Show rendered Markdown" aria-pressed="true">Preview</button>
                     <button id="btnToggleWrap" class="explorer-action" type="button" data-i18n-title="toggleWordWrap" data-i18n-aria="toggleWordWrap" title="Toggle word wrap" aria-label="Toggle word wrap" aria-pressed="true">
                       <span data-icon="wrap" data-icon-size="14"></span>
                     </button>
@@ -368,6 +369,7 @@
                   <span data-i18n="selectFileHint">Choose a file in the project tree to preview it.</span>
                 </div>
                 <pre id="editorBody" class="editor-body hidden" tabindex="0"><code aria-live="polite"></code></pre>
+                <div id="mdPreview" class="md-preview-pane hidden" tabindex="0"></div>
               </section>
             </div>
           </div>
@@ -387,11 +389,13 @@
               <div class="diff-toolbar-actions">
                 <button type="button" class="pill-btn accent" id="btnDiffAccept" data-i18n="accept" title="Accept all hunks">Accept</button>
                 <button type="button" class="pill-btn" id="btnDiffReject" data-i18n="reject" title="Reject all hunks">Reject</button>
+                <button type="button" class="pill-btn ghost-pill hidden" id="btnDiffDoc" data-i18n="mdDocument" title="Show rendered Markdown">Document</button>
                 <button type="button" class="pill-btn ghost-pill" id="btnDiffSide" data-i18n="diffSide" title="Toggle side-by-side">Side</button>
               </div>
             </div>
             <!-- Hunk list is primary when available; full file is secondary -->
             <div id="hunkList" class="hunk-list hidden" aria-label="Diff hunks"></div>
+            <div id="mdDocView" class="md-doc-view hidden" tabindex="0"></div>
             <div id="diffView" class="diff-view">
               <pre id="diffBody" class="editor-body diff-body"><code data-i18n="diffPreview">// Diff preview</code></pre>
               <div id="diffSide" class="diff-side hidden">

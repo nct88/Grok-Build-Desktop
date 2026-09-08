@@ -908,6 +908,29 @@ try {
   if (!tableHtml.includes('class="md-table-wrap"') || !tableHtml.includes("<table>")) {
     throw new Error(`main markdown table: ${tableHtml.slice(0, 160)}`);
   }
+  if (!globalThis.GrokMarkdown.isMarkdownPath("docs/plan.md") || globalThis.GrokMarkdown.isMarkdownPath("app.js")) {
+    throw new Error("isMarkdownPath should accept .md and reject other files");
+  }
+  const headingHtml = globalThis.GrokMarkdown.renderMarkdown("## Khả thi\n\n**sẵn sàng**");
+  if (!headingHtml.includes("md-h2") || !headingHtml.includes("<strong>")) {
+    throw new Error(`heading/strong markdown: ${headingHtml.slice(0, 160)}`);
+  }
+  const mermaidHtml = globalThis.GrokMarkdown.renderMermaid(
+    "flowchart TD\n  A[User] --> B{IP?}\n  B -->|yes| C[VPN]",
+  );
+  if (!/md-diagram/.test(mermaidHtml) || !/<svg[\s\S]*User[\s\S]*VPN/.test(mermaidHtml)) {
+    throw new Error(`mermaid flowchart: ${mermaidHtml.slice(0, 240)}`);
+  }
+  const sequenceHtml = globalThis.GrokMarkdown.renderMermaid(
+    "sequenceDiagram\n  Client->>Server: ping\n  Server-->>Client: pong",
+  );
+  if (!/md-diagram/.test(sequenceHtml) || !/sequence/.test(sequenceHtml) || !/ping/.test(sequenceHtml)) {
+    throw new Error(`mermaid sequence: ${sequenceHtml.slice(0, 240)}`);
+  }
+  const fencedMermaid = globalThis.GrokMarkdown.renderMarkdown("```mermaid\nflowchart LR\n  A[Start] --> B[End]\n```");
+  if (!/md-diagram/.test(fencedMermaid)) {
+    throw new Error(`fenced mermaid: ${fencedMermaid.slice(0, 160)}`);
+  }
 
   const previousSelf = globalThis.self;
   let workerReply = null;

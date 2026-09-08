@@ -678,10 +678,80 @@
       host.appendChild(wrap);
     }
 
+    function paintMarkdownDocument(el, source) {
+      const text = String(source ?? "");
+      if (!el) return;
+      if (off?.renderMarkdownHtml) {
+        if (!el.classList.contains("md-structured")) el.textContent = text.slice(0, 4000);
+        off.renderMarkdownHtml(text).then((html) => {
+          if (!el.isConnected) return;
+          off.applyStructuredHtml(el, html, opts.openExternal);
+          pathLinks?.hydrate?.(el, {
+            onActivate: opts.onPathActivate,
+            onContext: opts.onPathContext,
+          });
+        });
+        return;
+      }
+      if (md?.setStructuredContent) {
+        md.setStructuredContent(el, text, opts.openExternal);
+        pathLinks?.hydrate?.(el, {
+          onActivate: opts.onPathActivate,
+          onContext: opts.onPathContext,
+        });
+        return;
+      }
+      el.textContent = text;
+    }
+
+    function renderMarkdownDoc(host, change, running) {
+      const wrap = document.createElement("div");
+      wrap.className = "cli-md-doc";
+      const toolbar = document.createElement("div");
+      toolbar.className = "cli-md-toolbar";
+      const pathBtn = document.createElement("button");
+      pathBtn.type = "button";
+      pathBtn.className = "cli-diff-path";
+      pathBtn.textContent = String(change.path || "").replace(/\\/g, "/").split("/").pop() || change.path || "";
+      pathBtn.title = change.path || "";
+      pathBtn.onclick = (ev) => {
+        ev.preventDefault();
+        opts.onReview?.({ ...change, view: "document" });
+      };
+      const toggle = document.createElement("button");
+      toggle.type = "button";
+      toggle.className = "cli-md-toggle";
+      const preview = document.createElement("div");
+      preview.className = "md-body md-structured cli-md-preview";
+      const diffHost = document.createElement("div");
+      diffHost.className = "cli-md-diff hidden";
+      let showingDiff = Boolean(running);
+      const applyMode = () => {
+        preview.classList.toggle("hidden", showingDiff);
+        diffHost.classList.toggle("hidden", !showingDiff);
+        toggle.textContent = showingDiff
+          ? t("mdDocument", "Document")
+          : t("mdSourceDiff", "Diff");
+      };
+      toggle.onclick = (ev) => {
+        ev.preventDefault();
+        ev.stopPropagation();
+        showingDiff = !showingDiff;
+        applyMode();
+      };
+      toolbar.append(pathBtn, toggle);
+      wrap.append(toolbar, preview, diffHost);
+      host.appendChild(wrap);
+      if (!running && change.newText != null) paintMarkdownDocument(preview, change.newText);
+      renderCliDiff(diffHost, change.oldText, change.newText, "");
+      applyMode();
+    }
+
     function fillToolBody(body, item) {
       if (!body) return;
       body.replaceChildren();
       const detail = item.meta?.detail || "";
+      const running = item.meta?.status === "running" || item.meta?.status === "pending";
       if (detail) {
         const det = document.createElement("div");
         det.className = "cli-tool-detail";
@@ -694,7 +764,10 @@
           ? [{ path: item.meta.path, oldText: item.meta.oldText, newText: item.meta.newText }]
           : [];
       for (const d of diffs.slice(0, 4)) {
-        if (d.newText != null || d.oldText != null) {
+        const markdownFile = md?.isMarkdownPath?.(d.path) && d.newText != null;
+        if (markdownFile) {
+          renderMarkdownDoc(body, d, running);
+        } else if (d.newText != null || d.oldText != null) {
           renderCliDiff(body, d.oldText, d.newText, d.path);
         } else if (d.path) {
           const p = document.createElement("button");

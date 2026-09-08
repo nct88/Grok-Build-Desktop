@@ -125,6 +125,10 @@
   function applyStructuredHtml(el, html, openLink) {
     el.classList.add("md-body", "md-structured");
     el.innerHTML = html || "";
+    if (globalThis.GrokMarkdown?.enhanceElement) {
+      globalThis.GrokMarkdown.enhanceElement(el, openLink);
+      return;
+    }
     for (const pre of [...el.querySelectorAll("pre.md-code")]) {
       if (pre.parentElement?.classList.contains("code-card")) continue;
       const card = document.createElement("div");

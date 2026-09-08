@@ -251,5 +251,57 @@
     return { highlighted, limited: false, lineCount: lineNumber - 1, language };
   }
 
-  global.GrokSyntax = { languageForPath, tokenize, render };
+  const FENCE_ALIASES = {
+    js: "javascript", javascript: "javascript", jsx: "javascript",
+    ts: "typescript", typescript: "typescript", tsx: "typescript",
+    py: "python", python: "python",
+    rs: "rust", rust: "rust",
+    sh: "shell", bash: "shell", zsh: "shell", shell: "shell",
+    ps1: "powershell", powershell: "powershell",
+    json: "json", jsonc: "json",
+    yml: "yaml", yaml: "yaml",
+    html: "markup", xml: "markup", svg: "markup", htm: "markup",
+    css: "css", scss: "css", less: "css",
+    md: "markdown", markdown: "markdown", mdx: "markdown",
+    go: "go", java: "java", c: "c", cpp: "cpp", "c++": "cpp", cxx: "cpp",
+    sql: "sql", lua: "lua", rb: "ruby", ruby: "ruby",
+    php: "php", kt: "kotlin", kotlin: "kotlin",
+    cs: "csharp", csharp: "csharp",
+    dockerfile: "dockerfile", makefile: "makefile",
+    toml: "toml", ini: "ini", dart: "dart", swift: "swift",
+  };
+
+  function languageForFence(language) {
+    const raw = String(language || "").trim().toLowerCase();
+    if (!raw) return { id: "plain", label: "code" };
+    const id = FENCE_ALIASES[raw] || (KEYWORD_SETS[raw] ? raw : "plain");
+    return { id, label: raw };
+  }
+
+  function highlightFence(codeElement, language) {
+    if (!codeElement || !global.document) return { highlighted: false };
+    const text = String(codeElement.textContent || "");
+    if (text.length > 80_000) return { highlighted: false, limited: true };
+    const info = languageForFence(language);
+    if (info.id === "plain") return { highlighted: false, language: info };
+    const tokens = tokenize(text, info.id);
+    const fragment = global.document.createDocumentFragment();
+    for (const token of tokens) {
+      const pieces = token.text.split("\n");
+      pieces.forEach((piece, index) => {
+        if (piece) {
+          const span = global.document.createElement("span");
+          span.className = token.type === "plain" ? "tok-plain" : `tok-${token.type}`;
+          span.textContent = piece;
+          fragment.appendChild(span);
+        }
+        if (index < pieces.length - 1) fragment.appendChild(global.document.createTextNode("\n"));
+      });
+    }
+    codeElement.replaceChildren(fragment);
+    codeElement.dataset.language = info.id;
+    return { highlighted: true, language: info };
+  }
+
+  global.GrokSyntax = { languageForPath, languageForFence, tokenize, render, highlightFence };
 })(typeof window !== "undefined" ? window : globalThis);

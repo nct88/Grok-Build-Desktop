@@ -8,7 +8,7 @@ Grok Build Desktop là ứng dụng **agent desktop** chạy trên Electron, s�
 
 > **CLI là lõi · Desktop là giao diện.** Grok Build Desktop không phải Grok Build IDE, không phải bản đổi giao diện của VS Code, và không triển khai một agent runtime thứ hai.
 
-Phiên bản source hiện tại: **0.5.51** — xem [`product/VERSION`](product/VERSION).
+Phiên bản source hiện tại: **0.5.52** — xem [`product/VERSION`](product/VERSION).
 
 ## Tải xuống
 
@@ -16,12 +16,12 @@ Release được phát hành công khai tại GitHub Releases:
 
 | Gói | Mục đích | Tải xuống |
 |---|---|---|
-| NSIS Setup | Cài vào Windows, tạo Start Menu/shortcut | [Grok-Build-Setup-0.5.51.exe](https://github.com/nct88/Grok-Build-Desktop/releases/download/v0.5.51/Grok-Build-Setup-0.5.51.exe) |
-| Portable EXE | Chạy dạng file tự giải nén | [Grok-Build-0.5.51-win32-x64-portable.exe](https://github.com/nct88/Grok-Build-Desktop/releases/download/v0.5.51/Grok-Build-0.5.51-win32-x64-portable.exe) |
-| Portable ZIP | Giải nén một lần, phù hợp dùng lâu dài | [Grok-Build-0.5.51-win32-x64.zip](https://github.com/nct88/Grok-Build-Desktop/releases/download/v0.5.51/Grok-Build-0.5.51-win32-x64.zip) |
-| Manifest | Kích thước và SHA-256 của artifact | [MANIFEST.json](https://github.com/nct88/Grok-Build-Desktop/releases/download/v0.5.51/MANIFEST.json) |
+| NSIS Setup | Cài vào Windows, tạo Start Menu/shortcut | [Grok-Build-Setup-0.5.52.exe](https://github.com/nct88/Grok-Build-Desktop/releases/download/v0.5.52/Grok-Build-Setup-0.5.52.exe) |
+| Portable EXE | Chạy dạng file tự giải nén | [Grok-Build-0.5.52-win32-x64-portable.exe](https://github.com/nct88/Grok-Build-Desktop/releases/download/v0.5.52/Grok-Build-0.5.52-win32-x64-portable.exe) |
+| Portable ZIP | Giải nén một lần, phù hợp dùng lâu dài | [Grok-Build-0.5.52-win32-x64.zip](https://github.com/nct88/Grok-Build-Desktop/releases/download/v0.5.52/Grok-Build-0.5.52-win32-x64.zip) |
+| Manifest | Kích thước và SHA-256 của artifact | [MANIFEST.json](https://github.com/nct88/Grok-Build-Desktop/releases/download/v0.5.52/MANIFEST.json) |
 
-Trang phát hành: [Grok Build Desktop v0.5.51](https://github.com/nct88/Grok-Build-Desktop/releases/tag/v0.5.51).
+Trang phát hành: [Grok Build Desktop v0.5.52](https://github.com/nct88/Grok-Build-Desktop/releases/tag/v0.5.52).
 
 Các file Windows hiện chưa được ký Authenticode. SmartScreen có thể cảnh báo trong lần chạy đầu; hãy kiểm tra SHA-256 trong `MANIFEST.json` trước khi mở file.
 
@@ -48,7 +48,7 @@ Grok Build Desktop (Electron)
 
 ### Trò chuyện và agent
 
-- Hiển thị nội dung trả lời theo luồng, Markdown, thinking, plan và trạng thái công cụ.
+- Hiển thị nội dung trả lời theo luồng, Markdown, thinking, plan và trạng thái công cụ. File `.md` (kế hoạch, báo cáo) được dựng thành tài liệu đọc được sau khi agent viết xong.
 - Gom các lời gọi công cụ thành nhóm; câu trả lời cuối được hiển thị phía dưới hoạt động công cụ.
 - Chọn model, reasoning effort, mode và chính sách quyền ngay tại composer.
 - Lệnh `/` của Grok CLI chạy trong composer, gồm session (`/new`, `/resume`, `/fork`, `/quit`, `/home`), model (`/model`, `/effort`, `/plan`), MCP/trust (`/mcps`, `/hooks-trust`), memory/workflow (`/remember`, `/loop`, `/goal`) và Settings (`/settings`, `/theme`, `/privacy`).
