@@ -240,7 +240,7 @@ try {
   const movedSummary = JSON.parse(await readFile(movedSummaryPath, "utf8"));
   assert.equal(movedSummary.info.cwd, projectB);
   const persistedDesktopState = JSON.parse(await readFile(path.join(profileDir, "desktop-state.json"), "utf8"));
-  assert.deepEqual(persistedDesktopState.recentProjects, [projectA, projectB]);
+  assert.deepEqual(persistedDesktopState.recentProjects, [projectB, projectA]);
   console.log("Project/session UI synchronization: passed");
 } finally {
   await electronApp.close();

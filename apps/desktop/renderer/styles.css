@@ -673,6 +673,17 @@ body.resizing button { user-select: auto !important; cursor: inherit; }
 .project-item .project-name {
   flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
+.sidebar-age {
+  flex: 0 0 auto;
+  margin-left: auto;
+  padding-left: 8px;
+  font-size: 10.5px;
+  font-weight: 500;
+  color: var(--text-3);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.project-chat-item > .sidebar-age { margin-top: 1px; }
 .project-item:hover { background: var(--hover); color: var(--text-2); }
 /* Active: text only — no persistent background */
 .project-item.active {
@@ -1402,6 +1413,7 @@ body.resizing button { user-select: auto !important; cursor: inherit; }
   flex-direction: column;
   gap: 0;
   scrollbar-gutter: stable;
+  scroll-padding-bottom: 24px;
 }
 .timeline.tl-virtual {
   display: block; /* scroll container; children stack via block flow */
@@ -1416,7 +1428,7 @@ body.resizing button { user-select: auto !important; cursor: inherit; }
   max-width: var(--chat-max);
   margin-left: auto;
   margin-right: auto;
-  padding: 14px 16px 12px;
+  padding: 14px 16px 36px;
   box-sizing: border-box;
 }
 .tl-item {

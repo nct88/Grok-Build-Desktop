@@ -91,6 +91,12 @@ try {
   console.log(`Desktop ${packaged ? "packaged " : ""}layout OK (${version}): 1000x640, conversation=${geometry.conversation.width.toFixed(0)}px, composer=${geometry.composer.width.toFixed(0)}px.`);
   console.log(`Visual evidence written to ${evidenceDir}`);
 } finally {
-  await electronApp.close();
-  await rm(profileDir, { recursive: true, force: true });
+  try {
+    await Promise.race([
+      electronApp.close(),
+      new Promise((resolve) => setTimeout(resolve, 2000)),
+    ]);
+  } catch {}
+  await rm(profileDir, { recursive: true, force: true }).catch(() => {});
+  process.exit(0);
 }

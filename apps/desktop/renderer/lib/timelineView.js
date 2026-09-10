@@ -5,6 +5,21 @@
 (() => {
   const VIRTUAL_THRESHOLD = 64;
   const OVERSCAN = 10;
+
+  /**
+   * When the user is at the live tail, always mount the last messages.
+   * Estimated heights otherwise leave the tail inside spacerBottom (content "lost").
+   */
+  function pinRangeToTail(n, start, end, pinTail, viewBudget, heightAt) {
+    if (!pinTail || n <= 0) return { start, end };
+    let s = n;
+    let used = 0;
+    while (s > 0 && used < viewBudget) {
+      s -= 1;
+      used += heightAt(s);
+    }
+    return { start: Math.max(0, s - OVERSCAN), end: n };
+  }
   const EST = {
     user: 72,
     assistant: 140,
@@ -1201,8 +1216,6 @@
         start = i;
       }
       start = Math.max(0, start - OVERSCAN);
-      let top = 0;
-      for (let i = 0; i < start; i++) top += estimateHeight(items[i]);
 
       let end = start;
       let used = 0;
@@ -1211,6 +1224,18 @@
         end++;
       }
       end = Math.min(n, end + OVERSCAN);
+
+      const nearEnd = scrollTop + viewH >= Math.max(0, root.scrollHeight - 64);
+      const pinned = pinRangeToTail(
+        n,
+        start,
+        end,
+        stickToBottom || nearEnd,
+        viewH + OVERSCAN * 40,
+        (i) => estimateHeight(items[i]),
+      );
+      start = pinned.start;
+      end = pinned.end;
 
       // Always include streaming tail
       const streamIds = new Set(
@@ -1225,6 +1250,8 @@
         }
       }
 
+      let top = 0;
+      for (let i = 0; i < start; i++) top += estimateHeight(items[i]);
       let bottom = 0;
       for (let i = end; i < n; i++) bottom += estimateHeight(items[i]);
       return { start, end, top, bottom, full: false };
@@ -1456,5 +1483,5 @@
     };
   }
 
-  globalThis.GrokTimelineView = { create: createTimelineView, VIRTUAL_THRESHOLD };
+  globalThis.GrokTimelineView = { create: createTimelineView, VIRTUAL_THRESHOLD, pinRangeToTail };
 })();

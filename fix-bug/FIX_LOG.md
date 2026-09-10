@@ -1,5 +1,29 @@
 # Fix log
 
+## 2026-09-10 — Grok CLI 1.0.25 dictation insertion parity (v0.5.54)
+
+- **Yêu cầu / Triệu chứng:** Đối chiếu Grok Build CLI mới nhất và bổ sung phần tích hợp phù hợp cho Desktop và IDE.
+- **Nguyên nhân:** Desktop SpeechRecognition luôn nối transcript vào cuối composer. Nếu người dùng đặt con trỏ hoặc bôi chọn một đoạn giữa prompt, nội dung đọc chính tả không theo vị trí chỉnh sửa. Đây lệch với hành vi Grok Build 1.0.25.
+- **Giải pháp:** Lưu giá trị/range gốc khi bắt đầu nghe; mỗi interim/final result thay đúng range đó và đặt caret sau transcript. Bổ sung helper thuần cùng regression test. Workflow controls đã có trong Desktop; các hành vi runtime khác tiếp tục do CLI/ACP sở hữu.
+- **Tệp tác động:** `apps/desktop/renderer/lib/voiceTranscript.js`, `index.html`, `app.js`, `scripts/test-voice-transcript.mjs`, `docs/CLI_1.0.25.md`.
+- **Kiểm chứng:** Chạy focused test, full Desktop test/visual gate và build trước đóng gói; kết quả cuối được ghi trong handoff.
+
+## 2026-09-09 — Sidebar dự án đang xử lý lên đầu + thời gian + cuộn cuối hội thoại
+
+- **Target version:** 0.5.54
+- **Yêu cầu gốc / Triệu chứng (Symptom):** Cuộn xuống cuối hội thoại thì mất nội dung. Sidebar không đưa dự án đang trao đổi lên đầu. Không thấy mốc thời gian (7d / 45m) bên phải dự án và cuộc trao đổi.
+- **Nguyên nhân gốc rễ (Root Cause):**
+  - Timeline ảo: khi ước lượng chiều cao lệch, tin cuối nằm trong `spacerBottom` nên cuộn tới đáy không mount được.
+  - `touchRecentProject` cố ý không promote dự án đã có (kéo-thả giữ thứ tự).
+- **Giải pháp chi tiết (Resolution):** Pin dải nhìn khi ở cuối transcript. Promote dự án đang mở/chat lên đầu danh sách. Hiện tuổi tương đối bên phải hàng dự án (session mới nhất) và hàng trao đổi (`updatedAt`); đơn vị theo ngôn ngữ app (EN `45m`/`7d`, VI `45p`/`7ng`).
+- **Danh sách file tác động:** `apps/desktop/renderer/lib/timelineView.js`, `domHelpers.js`, `app.js`, `styles.css`; `apps/desktop/src/main.cjs`; `scripts/test-relative-time.mjs`, `test-sidebar-project-runtime.mjs`, `test-project-session-sync-ui.mjs`; `package.json`.
+- **Kiểm chứng (Verification Proof):** `npm run check` exit 0 (arch, packaging, brand, release contract, 30 E2E, visual 1000×640 + 1440×900). `publish-release.ps1 -Version 0.5.54` exit 0. Artifact unsigned local candidate:
+  - Setup `Grok-Build-Setup-0.5.54.exe` 92,839,028 bytes SHA-256 `701EF0BE2CAA760CB273C4A15D6BA5A6BF0199859480CD1FA489ECC756E65EC6`
+  - Portable EXE 92,416,008 bytes SHA-256 `6ACA71B2842F1B6074785161961AFBE446C85FA9B2760F8BC0CAC9EF099142D3`
+  - Portable ZIP 149,793,236 bytes SHA-256 `D4B0035BC8388B82FA2282EBBBA6B71AA2B327875A024AE44B140C8A6F76CFA4`
+  - `app.asar` 4,565,577 bytes SHA-256 `192EDD5825AC96CA6785837982FAD974EDB5FBC19E2AD06190604ADA976E13E1`
+- **Publication:** Pending commit/push/GitHub/R2.
+
 ## 2026-09-09 — Chấp nhận plan.md không còn lỗi Path outside workspace (v0.5.53)
 
 - **Target version:** 0.5.53

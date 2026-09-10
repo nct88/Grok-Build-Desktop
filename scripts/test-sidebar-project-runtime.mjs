@@ -158,6 +158,22 @@ try {
   }, sessionTitle);
   await page.waitForFunction((text) => document.querySelector("#messages")?.textContent?.includes(text), "Nội dung beta đã lưu.");
   assert.equal(await page.locator("#workspaceLabel").textContent(), projectB);
+  await page.waitForFunction((target) =>
+    document.querySelector(".project-block")?.dataset.projectPath === target, projectB);
+  const orderAfterChat = await page.evaluate(() =>
+    Array.from(document.querySelectorAll(".project-block")).map((node) => node.dataset.projectPath),
+  );
+  assert.equal(orderAfterChat[0], projectB, "working project jumps to the top of the sidebar");
+  const chatAge = await page.evaluate((title) => {
+    const row = Array.from(document.querySelectorAll(".project-chat-item"))
+      .find((node) => node.textContent?.includes(title));
+    return row?.querySelector(".sidebar-age")?.textContent || "";
+  }, sessionTitle);
+  assert.match(
+    chatAge,
+    /^(now|vừa xong|\d+[mhd]|[1-9]\d*w|\d+mo|\d+y|\d+p|\d+g|\d+ng|\d+tu|\d+th|\d+năm)$/,
+    "nested chat shows relative age in the app language",
+  );
   assert.equal(await page.locator(".session-tab").count(), 0);
   assert.equal(await page.locator("#sessionTabs").evaluate((el) => el.classList.contains("session-tabs-empty")), true);
 

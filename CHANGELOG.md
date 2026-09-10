@@ -4,6 +4,15 @@ Public, versioned changes for Grok Build Desktop.
 
 ## Unreleased
 
+## 0.5.54 — 2026-09-10
+
+- Voice dictation inserts at the cursor position or replaces active selection, matching Grok Build CLI 1.0.25.
+- The left project list promotes the folder you are working in to the top when you open that project or one of its chats.
+- Project rows and nested chats show a compact last-active age, localized with the app language (EN `45m`/`7d`, VI `45p`/`7ng`).
+- Long conversations keep the last messages mounted when you scroll to the end, instead of dropping them into the virtualized spacer.
+
+Release details are maintained in `docs/releases/0.5.54.md`.
+
 ## 0.5.53 — 2026-09-09
 
 - Accepting a Markdown review (`plan.md` and other relative tool paths) writes into the open project instead of failing with `Path outside workspace is not allowed.`

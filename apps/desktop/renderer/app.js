@@ -1659,6 +1659,7 @@
     const next = root ? String(root).trim() : null;
     const extrasIn = Array.isArray(opts.extraRoots) ? opts.extraRoots : undefined;
     if (samePath(next, workspaceRoot) && extrasIn === undefined) {
+      if (next) await promoteProject(next);
       renderProjects();
       renderProjectMenu();
       updateProjectChip();
@@ -4786,17 +4787,61 @@
     hideSidebarSubmenu();
   });
 
-  /** Ordered project paths: first opened on top (bootstrap.recentProjects order). */
+  /** Ordered project paths: the project being worked on stays first. */
   function projectListItems() {
     const recent = (bootstrap?.recentProjects || []).filter(
       (p) => p && !isRecentsPath(p),
     );
     const items = [...recent];
-    // Current workspace not yet in list → append (bottom)
     if (workspaceRoot && !items.some((p) => samePath(p, workspaceRoot))) {
-      items.push(workspaceRoot);
+      items.unshift(workspaceRoot);
     }
     return items.slice(0, 24);
+  }
+
+  async function promoteProject(root) {
+    if (!root || isRecentsPath(root)) return;
+    const order = projectListItems();
+    const idx = order.findIndex((p) => samePath(p, root));
+    if (idx === 0) return;
+    const next = [...order];
+    if (idx > 0) {
+      const [item] = next.splice(idx, 1);
+      next.unshift(item);
+    } else {
+      next.unshift(root);
+    }
+    await persistProjectOrder(next);
+  }
+
+  function sidebarAgeLabel(iso) {
+    const format = globalThis.GrokDom?.formatRelativeAge;
+    if (typeof format !== "function") return "";
+    return format(iso, Date.now(), (key, fallback) => tt(key, fallback));
+  }
+
+  function newestSessionTime(sessions) {
+    let latest = "";
+    for (const s of sessions || []) {
+      const t = String(s?.updatedAt || "").trim();
+      if (t && t > latest) latest = t;
+    }
+    return latest;
+  }
+
+  function appendSidebarAge(parent, iso) {
+    const label = sidebarAgeLabel(iso);
+    if (!label) return;
+    const span = document.createElement("span");
+    span.className = "sidebar-age";
+    span.textContent = label;
+    try {
+      const ms = Date.parse(iso);
+      if (Number.isFinite(ms)) span.title = new Date(ms).toLocaleString();
+    } catch {
+      /* ignore */
+    }
+    parent.appendChild(span);
   }
 
   function sessionsForProject(projectPath) {
@@ -4835,11 +4880,12 @@
         `<span class="project-chat-title">${escapeHtml(s.title)}</span>` +
         (summary ? `<span class="project-chat-summary">${escapeHtml(summary)}</span>` : "");
       row.appendChild(main);
+      appendSidebarAge(row, s.updatedAt);
       const spin = document.createElement("span");
       spin.className = "busy-spin hidden";
       spin.setAttribute("aria-hidden", "true");
       row.appendChild(spin);
-      row.title = [s.title, summary].filter(Boolean).join("\n");
+      row.title = [s.title, summary, sidebarAgeLabel(s.updatedAt)].filter(Boolean).join("\n");
       row.onclick = (ev) => {
         if (ev.target.closest("button")) return;
         void openHistorySession(s);
@@ -4874,11 +4920,12 @@
         `<span class="project-chat-title">${escapeHtml(s.title)}</span>` +
         (summary ? `<span class="project-chat-summary">${escapeHtml(summary)}</span>` : "");
       row.appendChild(main);
+      appendSidebarAge(row, s.updatedAt);
       const spin = document.createElement("span");
       spin.className = "busy-spin hidden";
       spin.setAttribute("aria-hidden", "true");
       row.appendChild(spin);
-      row.title = [s.title, summary].filter(Boolean).join("\n");
+      row.title = [s.title, summary, sidebarAgeLabel(s.updatedAt)].filter(Boolean).join("\n");
       row.onclick = (event) => {
         if (event.target.closest("button")) return;
         void openHistorySession(s);
@@ -4980,6 +5027,7 @@
       b.setAttribute("role", "treeitem");
       b.setAttribute("aria-expanded", "true");
       b.innerHTML = `<span class="project-ico" data-icon="folder" data-icon-size="14" aria-hidden="true"></span><span class="project-name">${escapeHtml(basen(p))}</span>`;
+      appendSidebarAge(b, newestSessionTime(sessionsForProject(p)));
       b.title = p;
       b.onclick = () => void openProjectTab(p);
       bindProjectContextMenu(b, p);

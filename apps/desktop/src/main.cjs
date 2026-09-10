@@ -156,8 +156,9 @@ function pathsEqual(a, b) {
 }
 
 /**
- * Project list order: first opened stays on top; new projects append at bottom.
- * Re-opening an existing project does not move it (drag-and-drop owns reorder).
+ * Project list order: the project being worked on stays first.
+ * Opening or resuming a folder/chat promotes it to the top; drag-and-drop
+ * can still reorder via app:setRecentProjects.
  * @param {string[]} list
  * @param {string} root
  * @returns {string[]}
@@ -170,8 +171,8 @@ function touchRecentProject(list, root) {
   const cleaned = (list || []).filter(
     (p) => typeof p === "string" && p && !isRecentsWorkspace(p),
   );
-  if (cleaned.some((p) => pathsEqual(p, r))) return cleaned.slice(0, 24);
-  return [...cleaned, r].slice(0, 24);
+  const rest = cleaned.filter((p) => !pathsEqual(p, r));
+  return [r, ...rest].slice(0, 24);
 }
 
 /**
