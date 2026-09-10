@@ -8761,6 +8761,8 @@
         document.documentElement.lang === "vi";
       rec.lang = isVi ? "vi-VN" : "en-US";
       let base = prompt.value;
+      let selectionStart = prompt.selectionStart ?? base.length;
+      let selectionEnd = prompt.selectionEnd ?? selectionStart;
       let committed = "";
       rec.onresult = (ev) => {
         let interim = "";
@@ -8771,8 +8773,15 @@
           else interim += t;
         }
         const piece = (committed + interim).trim();
-        const sep = base && !/\s$/.test(base) && piece ? " " : "";
-        prompt.value = base + sep + piece;
+        const insertion = globalThis.GrokVoiceTranscript?.insertAtSelection(
+          base,
+          selectionStart,
+          selectionEnd,
+          piece,
+        );
+        if (!insertion) return;
+        prompt.value = insertion.value;
+        prompt.setSelectionRange(insertion.selectionStart, insertion.selectionEnd);
         autoSize();
         unlockChatInput();
       };
@@ -8795,6 +8804,8 @@
       rec.onend = () => setListening(false);
       try {
         base = prompt.value;
+        selectionStart = prompt.selectionStart ?? base.length;
+        selectionEnd = prompt.selectionEnd ?? selectionStart;
         committed = "";
         rec.start();
         setListening(true);
