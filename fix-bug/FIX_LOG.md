@@ -20,6 +20,7 @@
   - Portable EXE 92,418,206 bytes SHA-256 `D4F8042F418B2B4BF8FB6654D158D55D60B6D7FB0769F372F2881CBE07A3D44D`
   - Portable ZIP 149,793,475 bytes SHA-256 `CC03D7EB09EED9CCCB9578036493BE42B1C45F7B6EAA984ABF799104054AAD9C`
   - `app.asar` 4,566,988 bytes SHA-256 `3E9307DE0D27ABCD040F84DF68FB8499DB3D84456F7357B78539C444D2F5A5E4`
+- **Publication:** `main` pushed (`47e20a7`). Annotated tag and GitHub Release `v0.5.56` published at `https://github.com/nct88/Grok-Build-Desktop/releases/tag/v0.5.56` with four assets (Setup 92,841,201, Portable EXE 92,418,206, ZIP 149,793,475, MANIFEST 2,774). Cloudflare R2 `ai-clone/version.json` reports Grok `0.5.56`; `https://dl.truong.it/ai-clone/grok-build/Grok-Build-Setup-0.5.56.exe` returns HTTP 200 with Content-Length 92,841,201.
 
 ## 2026-09-17 — Live Streaming Markdown, Markdown Reader Panel, Clean Dist (v0.5.55)
 
