@@ -1,5 +1,23 @@
 # Fix log
 
+## 2026-09-17 — Giải phóng cuộn lên khi đang suy luận/streaming và giới hạn scheduleRender (v0.5.57)
+
+- **Target version:** 0.5.57
+- **Yêu cầu gốc / Triệu chứng (Symptom):** Khi bot đang suy luận hoặc stream câu trả lời, người dùng không cuộn chuột lên trên được (bị khóa cứng ở đáy, cứ cuộn lên là bị kéo giật ngược về đáy).
+- **Nguyên nhân gốc rễ (Root Cause):**
+  1. `scrollEnd()` trước đó kích hoạt `scheduleRender()` và đặt `ignoreScrollUntil = performance.now() + 160` trên MỌI delta streaming (`force = false`). Do các delta đến liên tục mỗi vài chục ms, `ignoreScrollUntil` bị gia hạn vô tận và nuốt trọn sự kiện `scroll` của người dùng.
+  2. Sự kiện `scroll` trước đó ưu tiên kiểm tra `isAtBottom()` (với ngưỡng 48px) trước khi kiểm tra cuộn lên: ngay khi người dùng lăn chuột lên vài pixel đầu tiên (vẫn nằm trong vùng 48px), `isAtBottom()` lập tức ép `stickToBottom = true` trở lại, khiến delta tiếp theo kéo người dùng về đáy.
+- **Giải pháp chi tiết (Resolution):**
+  1. Giới hạn `scheduleRender()` trong `scrollEnd()` CHỈ kích hoạt khi `force === true` (khi kết thúc turn hoặc khi gửi tin nhắn mới). Khi đang stream delta thông thường (`force === false`), không gọi `scheduleRender()`.
+  2. Rút ngắn `ignoreScrollUntil` từ 160ms xuống 50ms.
+  3. Sửa bộ lắng nghe `scroll`: ưu tiên kiểm tra `top + 2 < lastUserScrollTop` (cuộn lên) để lập tức unstick `stickToBottom = false`; chỉ khi người dùng cuộn xuống (`top > lastUserScrollTop`) và chạm đáy (`isAtBottom()`) mới bám lại đáy.
+  4. Trong `applyFinal` và `finalizeItem`: chỉ re-render và scroll khi `stickToBottom === true`, bảo toàn vị trí đọc nếu người dùng đã cuộn lên trên.
+- **Kiểm chứng (Verification Proof):** Đạt 30/30 unit & E2E tests (`npm test`), `node scripts/check-release-contract.mjs` exit 0. Artifacts:
+  - Setup `Grok-Build-Setup-0.5.57.exe` 92,842,321 bytes SHA-256 `AACB0A7B8BBA8C69A79B97A4445B177FB8AE089705E8D9E789DDC00A572F8F96`
+  - Portable EXE `Grok-Build-0.5.57-win32-x64-portable.exe` 92,419,302 bytes SHA-256 `9F619F5239F62D69EA8AC02E5A98B0A162029F808077340BE4F17863BAA6255A`
+  - Portable ZIP `Grok-Build-0.5.57-win32-x64.zip` 149,793,555 bytes SHA-256 `CBAAAF5687D5286A77B1958EBD90D18D2B403F7431B1BB795EAD1160457CEE8E`
+  - `app.asar` 4,567,199 bytes SHA-256 `CB9C66935E02A6DD076C8704808CC47E86C4A07FD7A161360495BB9B9D533116`
+
 ## 2026-09-17 — Sửa lỗi khoảng trống ở cuối timeline khi hoàn tất luồng suy luận (v0.5.56)
 
 - **Target version:** 0.5.56

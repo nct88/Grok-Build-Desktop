@@ -4,6 +4,14 @@ Public, versioned changes for Grok Build Desktop.
 
 ## Unreleased
 
+## 0.5.57 — 2026-09-17
+
+- Smooth scroll-up freedom during reasoning/streaming: immediately unbinds tail-follow when scrolling up, eliminating lock-in and allowing fluid review of earlier conversation history.
+- Restricted `scrollEnd` scheduling: virtualization passes are triggered only on deliberate forced scrolls (turn completion / prompt submit), preventing stream delta contention.
+- Isolated finalize/markdown updates: layout refresh during assistant completion respects user reading position and will not pull the viewport back down if scrolled up.
+
+Release details are maintained in `docs/releases/0.5.57.md`.
+
 ## 0.5.56 — 2026-09-17
 
 - Timeline virtualization tail pinning fix: eliminated empty blank gap at the bottom of the session timeline when assistant reasoning or response streaming finishes, without requiring manual upward scroll.

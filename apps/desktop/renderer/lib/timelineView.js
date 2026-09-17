@@ -194,13 +194,10 @@
       return 0;
     }
 
-    /**
-     * Tolerant tail detection: accounts for container scroll-padding-bottom (24px),
-     * .tl-window bottom padding, and Windows subpixel / DPI zoom rounding.
-     */
+    /** Tolerant tail detection: accounts for container scroll-padding-bottom (24px) */
     function isAtBottom() {
       const gap = root.scrollHeight - root.scrollTop - root.clientHeight;
-      return gap <= 48;
+      return gap <= 24;
     }
 
     /**
@@ -210,10 +207,12 @@
     function scrollEnd(force) {
       if (force) stickToBottom = true;
       if (!force && !stickToBottom) return;
-      if (store.length >= VIRTUAL_THRESHOLD) {
+      // Only schedule full virtualization pass on forced snaps (turn end / send),
+      // never on continuous stream deltas (prevents locking user scroll).
+      if (force && store.length >= VIRTUAL_THRESHOLD) {
         scheduleRender();
       }
-      ignoreScrollUntil = performance.now() + 160;
+      ignoreScrollUntil = performance.now() + 50;
       requestAnimationFrame(() => {
         if (disposed) return;
         root.scrollTop = root.scrollHeight;
@@ -601,10 +600,12 @@
         hydrateImages(el);
         mountMediaStrip(el, item);
         measure(el, item.id);
-        if (store.length >= VIRTUAL_THRESHOLD) {
-          scheduleRender();
+        if (stickToBottom) {
+          if (store.length >= VIRTUAL_THRESHOLD) {
+            scheduleRender();
+          }
+          scrollEnd(false);
         }
-        if (stickToBottom) scrollEnd(false);
       };
 
       if (off?.renderMarkdownHtml) {
@@ -1250,7 +1251,7 @@
         n,
         start,
         end,
-        stickToBottom || nearEnd || isAtBottom(),
+        stickToBottom || nearEnd,
         viewH + OVERSCAN * 40,
         (i) => estimateHeight(items[i]),
       );
@@ -1400,10 +1401,12 @@
       } else {
         scheduleRender();
       }
-      if (store.length >= VIRTUAL_THRESHOLD) {
-        scheduleRender();
+      if (stickToBottom) {
+        if (store.length >= VIRTUAL_THRESHOLD) {
+          scheduleRender();
+        }
+        scrollEnd(false);
       }
-      if (stickToBottom) scrollEnd(false);
     }
 
     const unsub = store.subscribe((change) => {
@@ -1469,10 +1472,11 @@
           return;
         }
         const top = root.scrollTop;
-        if (isAtBottom()) {
-          stickToBottom = true;
-        } else if (top + 8 < lastUserScrollTop) {
+        // Any meaningful upward scroll = leave live tail immediately!
+        if (top + 2 < lastUserScrollTop) {
           stickToBottom = false;
+        } else if (top > lastUserScrollTop && isAtBottom()) {
+          stickToBottom = true;
         }
         lastUserScrollTop = top;
         if (store.length >= VIRTUAL_THRESHOLD) scheduleRender();
