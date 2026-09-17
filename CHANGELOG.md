@@ -4,6 +4,14 @@ Public, versioned changes for Grok Build Desktop.
 
 ## Unreleased
 
+## 0.5.56 — 2026-09-17
+
+- Timeline virtualization tail pinning fix: eliminated empty blank gap at the bottom of the session timeline when assistant reasoning or response streaming finishes, without requiring manual upward scroll.
+- Enhanced bottom detection: increased `isAtBottom()` threshold to 48px to cleanly account for container scroll-padding (24px), window padding (36px), and Windows DPI zoom rounding.
+- Automated sliding window sync: ensured `scrollEnd(force)` and Markdown `applyFinal` schedule layout recalculation so tail items are always mounted in DOM.
+
+Release details are maintained in `docs/releases/0.5.56.md`.
+
 ## 0.5.55 — 2026-09-17
 
 - Live Markdown streaming rendering: assistant responses now format headings, lists, tables, and code fences in real-time during streaming.

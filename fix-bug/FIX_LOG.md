@@ -1,5 +1,26 @@
 # Fix log
 
+## 2026-09-17 — Sửa lỗi khoảng trống ở cuối timeline khi hoàn tất luồng suy luận (v0.5.56)
+
+- **Target version:** 0.5.56
+- **Yêu cầu gốc / Triệu chứng (Symptom):** Khi hoàn tất luồng suy luận trong session thì nội dung ở cuối trống, người dùng phải cuộn lên nội dung mới hiện ra.
+- **Nguyên nhân gốc rễ (Root Cause):**
+  1. `scrollEnd()` đặt `ignoreScrollUntil = performance.now() + 120` và gán `root.scrollTop = root.scrollHeight` nhưng không kích hoạt `scheduleRender()`. Sự kiện `scroll` bị chặn nên không render lại sliding window cho vị trí đáy mới, khiến người dùng bị đưa vào `spacerBottom` rỗng.
+  2. Khi streaming kết thúc, các tool và thought thu gọn lại (`open = false`) làm chiều cao DOM giảm đột ngột; `finalizeItem` và `applyFinal` (sau khi worker render Markdown) chỉ gọi `measure()` mà không xếp lịch render lại sliding window.
+  3. Ngưỡng `isAtBottom()` quá ngặt (`gap <= 8`) trong khi CSS có `scroll-padding-bottom: 24px` và `.tl-window` padding 36px, cộng thêm DPI scaling trên Windows khiến `stickToBottom` bị gán `false` và không thể phục hồi lại thành `true`.
+- **Giải pháp chi tiết (Resolution):**
+  1. Nâng ngưỡng `isAtBottom()` từ `<= 8` lên `<= 48`.
+  2. Kích hoạt `scheduleRender()` trong `scrollEnd()` khi danh sách ở chế độ ảo hóa (`store.length >= VIRTUAL_THRESHOLD`).
+  3. Bổ sung `scheduleRender()` trong `finalizeItem` và `applyFinal` để đồng bộ hóa kích thước DOM thực tế sau khi HTML Markdown hoàn tất.
+  4. Cải tiến bộ lắng nghe `scroll` để ưu tiên giữ `stickToBottom = true` nếu `isAtBottom()`, chỉ unstick khi người dùng thực sự cuộn lên ngoài vùng đáy.
+  5. Bổ sung `isAtBottom()` vào điều kiện ghim đuôi trong `visibleRange()`.
+- **Danh sách file tác động:** `apps/desktop/renderer/lib/timelineView.js`, `scripts/test-relative-time.mjs`, `product/VERSION`, `package.json`, `package-lock.json`, `apps/desktop/package.json`, `README.md`, `README.en.md`, `CHANGELOG.md`, `docs/releases/0.5.56.md`.
+- **Kiểm chứng (Verification Proof):** Đạt 30/30 unit & E2E tests (`npm test`), kiểm tra tail pinning với Markdown dài 1500px (`node scripts/test-relative-time.mjs`), `node scripts/check-release-contract.mjs` exit 0. Artifacts:
+  - Setup `Grok-Build-Setup-0.5.56.exe` 92,841,201 bytes SHA-256 `1633CF25479F08985ED040C679D0A0A5590C0CBEA83E529EB4ECF04D5AA2F092`
+  - Portable EXE 92,418,206 bytes SHA-256 `D4F8042F418B2B4BF8FB6654D158D55D60B6D7FB0769F372F2881CBE07A3D44D`
+  - Portable ZIP 149,793,475 bytes SHA-256 `CC03D7EB09EED9CCCB9578036493BE42B1C45F7B6EAA984ABF799104054AAD9C`
+  - `app.asar` 4,566,988 bytes SHA-256 `3E9307DE0D27ABCD040F84DF68FB8499DB3D84456F7357B78539C444D2F5A5E4`
+
 ## 2026-09-17 — Live Streaming Markdown, Markdown Reader Panel, Clean Dist (v0.5.55)
 
 - **Target version:** 0.5.55
