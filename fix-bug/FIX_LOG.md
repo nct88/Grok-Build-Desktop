@@ -17,6 +17,7 @@
   - Portable EXE `Grok-Build-0.5.57-win32-x64-portable.exe` 92,419,302 bytes SHA-256 `9F619F5239F62D69EA8AC02E5A98B0A162029F808077340BE4F17863BAA6255A`
   - Portable ZIP `Grok-Build-0.5.57-win32-x64.zip` 149,793,555 bytes SHA-256 `CBAAAF5687D5286A77B1958EBD90D18D2B403F7431B1BB795EAD1160457CEE8E`
   - `app.asar` 4,567,199 bytes SHA-256 `CB9C66935E02A6DD076C8704808CC47E86C4A07FD7A161360495BB9B9D533116`
+- **Publication:** `main` pushed (`3291216`). Annotated tag and GitHub Release `v0.5.57` published at `https://github.com/nct88/Grok-Build-Desktop/releases/tag/v0.5.57` with four assets (Setup 92,842,321, Portable EXE 92,419,302, ZIP 149,793,555, MANIFEST 2,774). Cloudflare R2 `ai-clone/version.json` reports Grok `0.5.57`; `https://dl.truong.it/ai-clone/grok-build/Grok-Build-Setup-0.5.57.exe` returns HTTP 200 with Content-Length 92,842,321.
 
 ## 2026-09-17 — Sửa lỗi khoảng trống ở cuối timeline khi hoàn tất luồng suy luận (v0.5.56)
 
