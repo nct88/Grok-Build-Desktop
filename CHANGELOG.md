@@ -4,6 +4,15 @@ Public, versioned changes for Grok Build Desktop.
 
 ## Unreleased
 
+## 0.5.55 — 2026-09-17
+
+- Live Markdown streaming rendering: assistant responses now format headings, lists, tables, and code fences in real-time during streaming.
+- Integrated Markdown document reader: clicking a `.md` file path in the session timeline opens the rendered preview directly in the right workbench pane.
+- Automated cleanup tool: added `npm run clean:dist` to safely purge superseded build outputs and test scratch folders while preserving the active release.
+- Compatibility alignment with Grok Build CLI 1.0.34: support cross-session memory GA, verified Markdown heading theme colors, and updated slash command catalog.
+
+Release details are maintained in `docs/releases/0.5.55.md`.
+
 ## 0.5.54 — 2026-09-10
 
 - Voice dictation inserts at the cursor position or replaces active selection, matching Grok Build CLI 1.0.25.

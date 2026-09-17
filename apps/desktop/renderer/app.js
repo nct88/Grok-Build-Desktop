@@ -535,6 +535,11 @@
         const result = await api.showItemInFolder?.(resolved);
         if (result?.ok === false) addStep(result.message || "Could not open containing folder");
       } else if (action === "open") {
+        if (md?.isMarkdownPath?.(resolved)) {
+          setPanelVisible(true);
+          void openInEditor(resolved);
+          return;
+        }
         const result = await api.openPath?.(resolved);
         if (result?.ok === false) addStep(result.message || "Could not open path");
       } else if (action === "copy") {
@@ -780,7 +785,15 @@
     resolveMedia,
     onMediaActivate: (info) => showMediaLightbox(info),
     onMediaContext: (info, pos) => showMediaCtx(info, pos),
-    onPathActivate: (info) => void pathAct("folder", info),
+    onPathActivate: (info) => {
+      const resolved = resolveSessionPath(info?.path);
+      if (resolved && md?.isMarkdownPath?.(resolved)) {
+        setPanelVisible(true);
+        void openInEditor(resolved);
+        return;
+      }
+      void pathAct("folder", info);
+    },
     onPathContext: (info, pos) => showPathCtx(info, pos),
     onReview: (meta) => {
       if (meta?.path) void showDiff(meta);
@@ -2661,6 +2674,7 @@
 
   async function openInEditor(filePath, line) {
     switchPanel("files");
+    setFilePaneCollapsed("preview", false);
     selectedFilePath = String(filePath || "");
     selectExplorerRow(selectedFilePath);
     const relativePath = relativeWorkspacePath(filePath);

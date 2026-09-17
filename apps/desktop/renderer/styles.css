@@ -1683,6 +1683,9 @@ html[data-compact="on"] .step { font-size: 12px; }
 .msg.assistant.md-structured {
   white-space: normal;
 }
+.msg.assistant.md-streaming.md-structured {
+  white-space: normal;
+}
 /* Prevent layout thrash while MD worker upgrades plain → structured */
 .msg.assistant[data-md-pending="1"] {
   min-height: 1.2em;

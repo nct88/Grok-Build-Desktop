@@ -549,17 +549,28 @@
         return;
       }
 
-      // Live stream: plain text + pre-wrap (CLI-like). Avoid MD thrash every frame.
+      // Live stream: render Markdown directly if available, keeping md-streaming for CSS / testing contract
       if (item.streaming || !structured) {
         // Cancel any in-flight structured render for this node
         mdGenMap.set(item.id, (mdGenMap.get(item.id) || 0) + 1);
         el.classList.add("md-body", "md-streaming");
-        el.classList.remove("md-structured");
         delete el.dataset.mdPending;
         // Only rewrite when text actually changed (reduces layout thrash / flicker)
         if (el.dataset.streamText !== text) {
           el.dataset.streamText = text;
-          el.textContent = text;
+          if (md?.renderMarkdown) {
+            el.classList.add("md-structured");
+            el.innerHTML = md.renderMarkdown(text);
+            md.enhanceElement?.(el, opts.openExternal);
+            pathLinks?.hydrate?.(el, {
+              onActivate: opts.onPathActivate,
+              onContext: opts.onPathContext,
+            });
+            hydrateImages(el);
+          } else {
+            el.classList.remove("md-structured");
+            el.textContent = text;
+          }
         }
         heightCache.delete(item.id);
         return;

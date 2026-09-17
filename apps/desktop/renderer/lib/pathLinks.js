@@ -37,7 +37,10 @@
   function bindLink(node, path, handlers) {
     node.classList.add("md-path-link");
     node.dataset.path = path;
-    node.title = `${path}\nClick to open containing folder · Right-click for options`;
+    const isMd = /\.(md|mdx|markdown)$/i.test(String(path).replace(/[?#].*$/, ""));
+    node.title = isMd
+      ? `${path}\nClick to preview rendered document · Right-click for options`
+      : `${path}\nClick to open containing folder · Right-click for options`;
     node.setAttribute("aria-label", `Local path: ${path}`);
     node.addEventListener("click", (event) => {
       event.preventDefault();

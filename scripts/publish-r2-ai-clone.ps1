@@ -63,7 +63,11 @@ if ($Changelog) {
   $argsList += @("--changelog", $Changelog)
 }
 
-python @argsList
+if (Get-Command uv -ErrorAction SilentlyContinue) {
+  & uv run --with boto3 python @argsList
+} else {
+  python @argsList
+}
 if ($LASTEXITCODE -ne 0) {
   exit $LASTEXITCODE
 }

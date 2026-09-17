@@ -1,5 +1,36 @@
 # Fix log
 
+## 2026-09-17 — Live Streaming Markdown, Markdown Reader Panel, Clean Dist (v0.5.55)
+
+- **Target version:** 0.5.55
+- **Yêu cầu gốc / Triệu chứng (Symptom):**
+  1. Luồng trả lời trong session hiển thị nội dung Markdown thô (`##`, `**`, v.v.) trong lúc stream rồi sau đó mới đổi kiểu sang văn bản thường.
+  2. File `.md` xuất ra trong timeline session khi nhấn vào thì mở thư mục trong Windows Explorer thay vì mở nội dung bên phải để đọc trực tiếp.
+  3. Kiểm tra nguyên tắc build và dọn dẹp các phiên bản cũ tích lũy trong `dist/`.
+- **Nguyên nhân gốc rễ (Root Cause):**
+  1. `bindAssistantContent` trong `timelineView.js` đặt `el.textContent = text` và `white-space: pre-wrap` trong khi `item.streaming === true` để tránh parse liên tục.
+  2. `onPathActivate` trong `app.js` luôn gọi `pathAct("folder", info)` mở Explorer.
+  3. `dist/` tích lũy các bản build nháp và test scratch cũ (hơn 5.2 GB).
+- **Giải pháp chi tiết (Resolution):**
+  1. Cho phép parse Markdown đồng bộ `md.renderMarkdown(text)` ngay khi stream text thay đổi, thêm class `md-structured` và CSS `.msg.assistant.md-streaming.md-structured { white-space: normal; }`.
+  2. Phát hiện file Markdown trong `onPathActivate` và `pathAct("open")`, kích hoạt `openInEditor(resolved)` và `setPanelVisible(true)` với chế độ Document Preview trực quan.
+  3. Dọn dẹp các file cũ và bổ sung script tự động hóa `npm run clean:dist`.
+- **Danh sách file tác động:** `apps/desktop/renderer/lib/timelineView.js`, `styles.css`, `app.js`, `lib/pathLinks.js`, `package.json`, `product/VERSION`, `README.md`, `README.en.md`, `CHANGELOG.md`, `docs/releases/0.5.55.md`, `scripts/clean-dist.mjs`.
+- **Kiểm chứng (Verification Proof):** `npm run check` exit 0 (arch, packaging, brand, release contract, 30 E2E, visual suites). `publish-release.ps1 -Version 0.5.55` exit 0. Artifacts:
+  - Setup `Grok-Build-Setup-0.5.55.exe` 92,841,030 bytes SHA-256 `BA2075EBF42C750F07E7070BF4DA0DA5CE8C00E272526432C97C6221B282BA95`
+  - Portable EXE 92,417,931 bytes SHA-256 `9EB6CA4C71EF6BDFD79D8DFA0E9A7F3EA012106F8B763D0A01955246612E14D1`
+  - Portable ZIP 149,793,444 bytes SHA-256 `854907B4BFE484C58D08FDE0E15E16539E696EAA015057E6B511B6C7C52ADBD9`
+  - `app.asar` 4,566,665 bytes SHA-256 `B83609DD3E35960CD455192E79765815E9306BB6816126A9F4087DF8DBEE4BE6`
+- **Publication:** Cloudflare R2 `ai-clone/version.json` updated to Grok `0.5.55`; `https://dl.truong.it/ai-clone/grok-build/Grok-Build-Setup-0.5.55.exe` returns HTTP 200 with Content-Length 92,841,030. Pending git commit/push/GitHub release.
+
+## 2026-09-17 — Grok CLI 1.0.34 integration alignment
+
+- **Yêu cầu / Triệu chứng:** Đối chiếu Grok Build CLI 1.0.34 (Sep 16, 2026) và triển khai nâng cấp tương thích cho Grok Build Desktop.
+- **Tính năng upstream:** Memory chính thức đạt GA (General Availability) với công cụ `grok memory`, MEMORY.md và cross-session recall; Markdown headings nhận theme colors chính xác; hỗ trợ MCP structured JSON data; an toàn checkpoint khi /rewind; hủy subagent ngầm khi phiên cha đóng.
+- **Giải pháp:** Cập nhật tài liệu tích hợp `docs/CLI_1.0.34.md`, xác nhận theme colors cho Markdown headings (`.md-body .md-h`, `.md-h1`–`.md-h6`) đồng nhất trên dark/light mode, bảo toàn cấu hình cross-session memory GA tương thích ngược.
+- **Tệp tác động:** `docs/CLI_1.0.34.md`, `CHANGELOG.md`, `fix-bug/FIX_LOG.md`.
+- **Kiểm chứng:** Kiểm tra `grok --version` báo 1.0.34, chạy kiểm thử toàn diện `npm test`, `check:arch`, `check:brand`, `check:packaging`, `check:release`.
+
 ## 2026-09-10 — Grok CLI 1.0.25 dictation insertion parity (v0.5.54)
 
 - **Yêu cầu / Triệu chứng:** Đối chiếu Grok Build CLI mới nhất và bổ sung phần tích hợp phù hợp cho Desktop và IDE.
