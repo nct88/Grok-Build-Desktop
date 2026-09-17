@@ -194,10 +194,13 @@
       return 0;
     }
 
-    /** Strict: only re-stick when truly pinned to the end */
+    /**
+     * Tolerant tail detection: accounts for container scroll-padding-bottom (24px),
+     * .tl-window bottom padding, and Windows subpixel / DPI zoom rounding.
+     */
     function isAtBottom() {
       const gap = root.scrollHeight - root.scrollTop - root.clientHeight;
-      return gap <= 8;
+      return gap <= 48;
     }
 
     /**
@@ -207,7 +210,10 @@
     function scrollEnd(force) {
       if (force) stickToBottom = true;
       if (!force && !stickToBottom) return;
-      ignoreScrollUntil = performance.now() + 120;
+      if (store.length >= VIRTUAL_THRESHOLD) {
+        scheduleRender();
+      }
+      ignoreScrollUntil = performance.now() + 160;
       requestAnimationFrame(() => {
         if (disposed) return;
         root.scrollTop = root.scrollHeight;
@@ -595,6 +601,9 @@
         hydrateImages(el);
         mountMediaStrip(el, item);
         measure(el, item.id);
+        if (store.length >= VIRTUAL_THRESHOLD) {
+          scheduleRender();
+        }
         if (stickToBottom) scrollEnd(false);
       };
 
@@ -1241,7 +1250,7 @@
         n,
         start,
         end,
-        stickToBottom || nearEnd,
+        stickToBottom || nearEnd || isAtBottom(),
         viewH + OVERSCAN * 40,
         (i) => estimateHeight(items[i]),
       );
@@ -1391,6 +1400,9 @@
       } else {
         scheduleRender();
       }
+      if (store.length >= VIRTUAL_THRESHOLD) {
+        scheduleRender();
+      }
       if (stickToBottom) scrollEnd(false);
     }
 
@@ -1457,11 +1469,10 @@
           return;
         }
         const top = root.scrollTop;
-        // Any meaningful upward scroll = leave live tail
-        if (top + 2 < lastUserScrollTop) {
-          stickToBottom = false;
-        } else if (isAtBottom()) {
+        if (isAtBottom()) {
           stickToBottom = true;
+        } else if (top + 8 < lastUserScrollTop) {
+          stickToBottom = false;
         }
         lastUserScrollTop = top;
         if (store.length >= VIRTUAL_THRESHOLD) scheduleRender();

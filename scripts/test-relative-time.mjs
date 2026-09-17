@@ -39,4 +39,16 @@ assert.equal(pinned.end, 80);
 assert.ok(pinned.start <= 77, "tail pin includes the last messages");
 assert.ok(pinned.start >= 67, "tail pin does not remount the whole transcript");
 
+// Large markdown answer at tail (e.g. 1500px response)
+const variableHeights = Array.from({ length: 120 }, (_, idx) => (idx === 119 ? 1500 : 80));
+const tailLongMd = pinRangeToTail(120, 10, 20, true, 800, (i) => variableHeights[i]);
+assert.equal(tailLongMd.end, 120, "tail pin covers the end of the transcript");
+assert.ok(tailLongMd.start >= 0 && tailLongMd.start <= 119, "tail pin start accommodates large tail message");
+
+// Zero items edge case
+assert.deepEqual(pinRangeToTail(0, 0, 0, true, 600, () => 100), { start: 0, end: 0 });
+
+// Virtual threshold contract
+assert.equal(globalThis.GrokTimelineView.VIRTUAL_THRESHOLD, 64);
+
 console.log("Relative age + timeline tail pin: passed");
