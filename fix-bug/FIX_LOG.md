@@ -21,7 +21,7 @@
   - Portable EXE 92,417,931 bytes SHA-256 `9EB6CA4C71EF6BDFD79D8DFA0E9A7F3EA012106F8B763D0A01955246612E14D1`
   - Portable ZIP 149,793,444 bytes SHA-256 `854907B4BFE484C58D08FDE0E15E16539E696EAA015057E6B511B6C7C52ADBD9`
   - `app.asar` 4,566,665 bytes SHA-256 `B83609DD3E35960CD455192E79765815E9306BB6816126A9F4087DF8DBEE4BE6`
-- **Publication:** Cloudflare R2 `ai-clone/version.json` updated to Grok `0.5.55`; `https://dl.truong.it/ai-clone/grok-build/Grok-Build-Setup-0.5.55.exe` returns HTTP 200 with Content-Length 92,841,030. Pending git commit/push/GitHub release.
+- **Publication:** `main` pushed (`0defb81..b11bd87`). Annotated tag and GitHub Release `v0.5.55` published at `https://github.com/nct88/Grok-Build-Desktop/releases/tag/v0.5.55` with four assets (Setup 92,841,030, Portable EXE 92,417,931, ZIP 149,793,444, MANIFEST 2,774). Cloudflare R2 `ai-clone/version.json` reports Grok `0.5.55`; `https://dl.truong.it/ai-clone/grok-build/Grok-Build-Setup-0.5.55.exe` returns HTTP 200 with Content-Length 92,841,030.
 
 ## 2026-09-17 — Grok CLI 1.0.34 integration alignment
 
