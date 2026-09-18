@@ -47,7 +47,11 @@ function renderInline(value) {
   text = text.replace(/~~([^~\n]+)~~/g, "<del>$1</del>");
   text = text.replace(/(?<!\*)\*([^*\n]+)\*(?!\*)/g, "<em>$1</em>");
   text = text.replace(/(?<!_)_([^_\n]+)_(?!_)/g, "<em>$1</em>");
-  return text.replace(/\u0000(\d+)\u0000/g, (_m, index) => tokens[Number(index)] ?? "");
+  let guard = 0;
+  while (/\u0000\d+\u0000/.test(text) && guard++ < 10) {
+    text = text.replace(/\u0000(\d+)\u0000/g, (_m, index) => tokens[Number(index)] ?? "");
+  }
+  return text;
 }
 
 function splitTableRow(line) {

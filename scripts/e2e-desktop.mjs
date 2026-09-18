@@ -903,6 +903,12 @@ try {
   if (!/md-path-link/.test(spacedPathHtml) || !/project with spaces/.test(spacedPathHtml)) {
     throw new Error(`markdown path with spaces: ${spacedPathHtml}`);
   }
+  const codeInLinkHtml = globalThis.GrokMarkdown.renderMarkdown(
+    "[`docs/06-ADMIN_CMS_CANONICAL_SPEC.md`](docs/06-ADMIN_CMS_CANONICAL_SPEC.md)",
+  );
+  if (!codeInLinkHtml.includes("<code>docs/06-ADMIN_CMS_CANONICAL_SPEC.md</code>") || />0<\/a>/.test(codeInLinkHtml)) {
+    throw new Error(`code in link markdown returned raw token index: ${codeInLinkHtml}`);
+  }
   const tableSource = "| Name | State |\n|---|---|\n| Desktop | Ready |";
   const tableHtml = globalThis.GrokMarkdown.renderMarkdown(tableSource);
   if (!tableHtml.includes('class="md-table-wrap"') || !tableHtml.includes("<table>")) {

@@ -4,6 +4,14 @@ Public, versioned changes for Grok Build Desktop.
 
 ## Unreleased
 
+## 0.5.58 — 2026-09-18
+
+- Recursive Markdown inline token unpack: completely resolved an issue where inline code nested inside file links (e.g. `[`docs/06-...md`](docs/...)`) was rendered as raw placeholder digits (e.g. `0`).
+- Parity between main-thread parser and `contentWorker.js`: ensured off-thread Markdown rendering resolves nested token trees identically to the UI thread.
+- Regression test coverage: added automated test cases in `e2e-desktop.mjs` verifying that code-in-link document paths never render as bare '0' tokens.
+
+Release details are maintained in `docs/releases/0.5.58.md`.
+
 ## 0.5.57 — 2026-09-17
 
 - Smooth scroll-up freedom during reasoning/streaming: immediately unbinds tail-follow when scrolling up, eliminating lock-in and allowing fluid review of earlier conversation history.

@@ -1,5 +1,221 @@
 # Fix log
 
+## 2026-09-18 — Khắc phục lỗi render Markdown inline code trong link hiển thị số '0' (v0.5.58)
+
+- **Target version:** 0.5.58
+- **Yêu cầu gốc / Triệu chứng (Symptom):** Trong session chat, khi mô hình trả về tên tài liệu hoặc mã nguồn dạng link có chứa inline code (ví dụ: `[`docs/06-ADMIN_CMS_CANONICAL_SPEC.md`](docs/06-ADMIN_CMS_CANONICAL_SPEC.md)`), giao diện hiển thị tên link thành một con số `0` đơn độc thay vì tên file.
+- **Nguyên nhân gốc rễ (Root Cause):**
+  1. Trong hàm `renderInline()` của cả `markdown.js` và `contentWorker.js`, inline code được tokenize trước tiên bằng placeholder ký tự null: `\u00000\u0000` (index 0 trong mảng `tokens`).
+  2. Tiếp theo, link regex bắt toàn bộ cụm `[\u00000\u0000](path)` và gói thành token `\u00001\u0000` chứa thẻ `<a ...>\u00000\u0000</a>`.
+  3. Ở bước cuối, hàm chỉ chạy `text.replace(/\u0000(\d+)\u0000/g, ...)` một lần duy nhất (single-pass). Placeholder con `\u00000\u0000` bên trong thẻ `<a>` không bao giờ được giải nén đệ quy. Khi đưa vào DOM, trình duyệt nuốt các ký tự điều khiển ASCII Null `\u0000` và kết xuất ký tự hiển thị duy nhất là số `0`.
+- **Giải pháp chi tiết (Resolution):**
+  1. Thay thế `return text.replace(...)` bằng vòng lặp while có kiểm soát (`while (/\u0000\d+\u0000/.test(text) && guard++ < 10)`) trong `markdown.js` và `contentWorker.js`, đảm bảo mọi cấp độ token lồng nhau đều được giải nén trọn vẹn.
+  2. Bổ sung assertion kiểm thử hồi quy tự động trong `scripts/e2e-desktop.mjs` để xác nhận thẻ `<code>` được dựng đầy đủ bên trong thẻ `<a>` và không bao giờ xuất hiện chuỗi `>0</a>`.
+- **Kiểm chứng (Verification Proof):** Đạt 30/30 unit & E2E tests (`npm test`), `check:arch`, `check:packaging`, `check:release` exit 0. Artifacts:
+  - Setup `Grok-Build-Setup-0.5.58.exe` 92,841,450 bytes SHA-256 `CBC6F59B0CA46C85163FA04621AE26D79D7D4D8E9345FE1AC9EC26EF8927A51C`
+  - Portable EXE `Grok-Build-0.5.58-win32-x64-portable.exe` 92,418,431 bytes SHA-256 `6ACB5CCC35423E73B5A899E2DA55CA203A2281C4A104F2B28FB75A80741F6E4C`
+  - Portable ZIP `Grok-Build-0.5.58-win32-x64.zip` 149,793,631 bytes SHA-256 `CB8773F8B3073832B1DEDBF6E7BB2F93755E53C93F9606DC45F4FFE63332B7D0`
+  - `app.asar` 4,567,397 bytes SHA-256 `905F79AA6FE8E630BDCF62889BFDEB3A33433D418FE0F46CC72BB5E0D7310ACB`
+
+## 2026-09-17 — Giải phóng cuộn lên khi đang suy luận/streaming và giới hạn scheduleRender (v0.5.57)
+
+- **Target version:** 0.5.57
+- **Yêu cầu gốc / Triệu chứng (Symptom):** Khi bot đang suy luận hoặc stream câu trả lời, người dùng không cuộn chuột lên trên được (bị khóa cứng ở đáy, cứ cuộn lên là bị kéo giật ngược về đáy).
+- **Nguyên nhân gốc rễ (Root Cause):**
+  1. `scrollEnd()` trước đó kích hoạt `scheduleRender()` và đặt `ignoreScrollUntil = performance.now() + 160` trên MỌI delta streaming (`force = false`). Do các delta đến liên tục mỗi vài chục ms, `ignoreScrollUntil` bị gia hạn vô tận và nuốt trọn sự kiện `scroll` của người dùng.
+  2. Sự kiện `scroll` trước đó ưu tiên kiểm tra `isAtBottom()` (với ngưỡng 48px) trước khi kiểm tra cuộn lên: ngay khi người dùng lăn chuột lên vài pixel đầu tiên (vẫn nằm trong vùng 48px), `isAtBottom()` lập tức ép `stickToBottom = true` trở lại, khiến delta tiếp theo kéo người dùng về đáy.
+- **Giải pháp chi tiết (Resolution):**
+  1. Giới hạn `scheduleRender()` trong `scrollEnd()` CHỈ kích hoạt khi `force === true` (khi kết thúc turn hoặc khi gửi tin nhắn mới). Khi đang stream delta thông thường (`force === false`), không gọi `scheduleRender()`.
+  2. Rút ngắn `ignoreScrollUntil` từ 160ms xuống 50ms.
+  3. Sửa bộ lắng nghe `scroll`: ưu tiên kiểm tra `top + 2 < lastUserScrollTop` (cuộn lên) để lập tức unstick `stickToBottom = false`; chỉ khi người dùng cuộn xuống (`top > lastUserScrollTop`) và chạm đáy (`isAtBottom()`) mới bám lại đáy.
+  4. Trong `applyFinal` và `finalizeItem`: chỉ re-render và scroll khi `stickToBottom === true`, bảo toàn vị trí đọc nếu người dùng đã cuộn lên trên.
+- **Kiểm chứng (Verification Proof):** Đạt 30/30 unit & E2E tests (`npm test`), `node scripts/check-release-contract.mjs` exit 0. Artifacts:
+  - Setup `Grok-Build-Setup-0.5.57.exe` 92,842,321 bytes SHA-256 `AACB0A7B8BBA8C69A79B97A4445B177FB8AE089705E8D9E789DDC00A572F8F96`
+  - Portable EXE `Grok-Build-0.5.57-win32-x64-portable.exe` 92,419,302 bytes SHA-256 `9F619F5239F62D69EA8AC02E5A98B0A162029F808077340BE4F17863BAA6255A`
+  - Portable ZIP `Grok-Build-0.5.57-win32-x64.zip` 149,793,555 bytes SHA-256 `CBAAAF5687D5286A77B1958EBD90D18D2B403F7431B1BB795EAD1160457CEE8E`
+  - `app.asar` 4,567,199 bytes SHA-256 `CB9C66935E02A6DD076C8704808CC47E86C4A07FD7A161360495BB9B9D533116`
+- **Publication:** `main` pushed (`3291216`). Annotated tag and GitHub Release `v0.5.57` published at `https://github.com/nct88/Grok-Build-Desktop/releases/tag/v0.5.57` with four assets (Setup 92,842,321, Portable EXE 92,419,302, ZIP 149,793,555, MANIFEST 2,774). Cloudflare R2 `ai-clone/version.json` reports Grok `0.5.57`; `https://dl.truong.it/ai-clone/grok-build/Grok-Build-Setup-0.5.57.exe` returns HTTP 200 with Content-Length 92,842,321.
+
+## 2026-09-17 — Sửa lỗi khoảng trống ở cuối timeline khi hoàn tất luồng suy luận (v0.5.56)
+
+- **Target version:** 0.5.56
+- **Yêu cầu gốc / Triệu chứng (Symptom):** Khi hoàn tất luồng suy luận trong session thì nội dung ở cuối trống, người dùng phải cuộn lên nội dung mới hiện ra.
+- **Nguyên nhân gốc rễ (Root Cause):**
+  1. `scrollEnd()` đặt `ignoreScrollUntil = performance.now() + 120` và gán `root.scrollTop = root.scrollHeight` nhưng không kích hoạt `scheduleRender()`. Sự kiện `scroll` bị chặn nên không render lại sliding window cho vị trí đáy mới, khiến người dùng bị đưa vào `spacerBottom` rỗng.
+  2. Khi streaming kết thúc, các tool và thought thu gọn lại (`open = false`) làm chiều cao DOM giảm đột ngột; `finalizeItem` và `applyFinal` (sau khi worker render Markdown) chỉ gọi `measure()` mà không xếp lịch render lại sliding window.
+  3. Ngưỡng `isAtBottom()` quá ngặt (`gap <= 8`) trong khi CSS có `scroll-padding-bottom: 24px` và `.tl-window` padding 36px, cộng thêm DPI scaling trên Windows khiến `stickToBottom` bị gán `false` và không thể phục hồi lại thành `true`.
+- **Giải pháp chi tiết (Resolution):**
+  1. Nâng ngưỡng `isAtBottom()` từ `<= 8` lên `<= 48`.
+  2. Kích hoạt `scheduleRender()` trong `scrollEnd()` khi danh sách ở chế độ ảo hóa (`store.length >= VIRTUAL_THRESHOLD`).
+  3. Bổ sung `scheduleRender()` trong `finalizeItem` và `applyFinal` để đồng bộ hóa kích thước DOM thực tế sau khi HTML Markdown hoàn tất.
+  4. Cải tiến bộ lắng nghe `scroll` để ưu tiên giữ `stickToBottom = true` nếu `isAtBottom()`, chỉ unstick khi người dùng thực sự cuộn lên ngoài vùng đáy.
+  5. Bổ sung `isAtBottom()` vào điều kiện ghim đuôi trong `visibleRange()`.
+- **Danh sách file tác động:** `apps/desktop/renderer/lib/timelineView.js`, `scripts/test-relative-time.mjs`, `product/VERSION`, `package.json`, `package-lock.json`, `apps/desktop/package.json`, `README.md`, `README.en.md`, `CHANGELOG.md`, `docs/releases/0.5.56.md`.
+- **Kiểm chứng (Verification Proof):** Đạt 30/30 unit & E2E tests (`npm test`), kiểm tra tail pinning với Markdown dài 1500px (`node scripts/test-relative-time.mjs`), `node scripts/check-release-contract.mjs` exit 0. Artifacts:
+  - Setup `Grok-Build-Setup-0.5.56.exe` 92,841,201 bytes SHA-256 `1633CF25479F08985ED040C679D0A0A5590C0CBEA83E529EB4ECF04D5AA2F092`
+  - Portable EXE 92,418,206 bytes SHA-256 `D4F8042F418B2B4BF8FB6654D158D55D60B6D7FB0769F372F2881CBE07A3D44D`
+  - Portable ZIP 149,793,475 bytes SHA-256 `CC03D7EB09EED9CCCB9578036493BE42B1C45F7B6EAA984ABF799104054AAD9C`
+  - `app.asar` 4,566,988 bytes SHA-256 `3E9307DE0D27ABCD040F84DF68FB8499DB3D84456F7357B78539C444D2F5A5E4`
+- **Publication:** `main` pushed (`47e20a7`). Annotated tag and GitHub Release `v0.5.56` published at `https://github.com/nct88/Grok-Build-Desktop/releases/tag/v0.5.56` with four assets (Setup 92,841,201, Portable EXE 92,418,206, ZIP 149,793,475, MANIFEST 2,774). Cloudflare R2 `ai-clone/version.json` reports Grok `0.5.56`; `https://dl.truong.it/ai-clone/grok-build/Grok-Build-Setup-0.5.56.exe` returns HTTP 200 with Content-Length 92,841,201.
+
+## 2026-09-17 — Live Streaming Markdown, Markdown Reader Panel, Clean Dist (v0.5.55)
+
+- **Target version:** 0.5.55
+- **Yêu cầu gốc / Triệu chứng (Symptom):**
+  1. Luồng trả lời trong session hiển thị nội dung Markdown thô (`##`, `**`, v.v.) trong lúc stream rồi sau đó mới đổi kiểu sang văn bản thường.
+  2. File `.md` xuất ra trong timeline session khi nhấn vào thì mở thư mục trong Windows Explorer thay vì mở nội dung bên phải để đọc trực tiếp.
+  3. Kiểm tra nguyên tắc build và dọn dẹp các phiên bản cũ tích lũy trong `dist/`.
+- **Nguyên nhân gốc rễ (Root Cause):**
+  1. `bindAssistantContent` trong `timelineView.js` đặt `el.textContent = text` và `white-space: pre-wrap` trong khi `item.streaming === true` để tránh parse liên tục.
+  2. `onPathActivate` trong `app.js` luôn gọi `pathAct("folder", info)` mở Explorer.
+  3. `dist/` tích lũy các bản build nháp và test scratch cũ (hơn 5.2 GB).
+- **Giải pháp chi tiết (Resolution):**
+  1. Cho phép parse Markdown đồng bộ `md.renderMarkdown(text)` ngay khi stream text thay đổi, thêm class `md-structured` và CSS `.msg.assistant.md-streaming.md-structured { white-space: normal; }`.
+  2. Phát hiện file Markdown trong `onPathActivate` và `pathAct("open")`, kích hoạt `openInEditor(resolved)` và `setPanelVisible(true)` với chế độ Document Preview trực quan.
+  3. Dọn dẹp các file cũ và bổ sung script tự động hóa `npm run clean:dist`.
+- **Danh sách file tác động:** `apps/desktop/renderer/lib/timelineView.js`, `styles.css`, `app.js`, `lib/pathLinks.js`, `package.json`, `product/VERSION`, `README.md`, `README.en.md`, `CHANGELOG.md`, `docs/releases/0.5.55.md`, `scripts/clean-dist.mjs`.
+- **Kiểm chứng (Verification Proof):** `npm run check` exit 0 (arch, packaging, brand, release contract, 30 E2E, visual suites). `publish-release.ps1 -Version 0.5.55` exit 0. Artifacts:
+  - Setup `Grok-Build-Setup-0.5.55.exe` 92,841,030 bytes SHA-256 `BA2075EBF42C750F07E7070BF4DA0DA5CE8C00E272526432C97C6221B282BA95`
+  - Portable EXE 92,417,931 bytes SHA-256 `9EB6CA4C71EF6BDFD79D8DFA0E9A7F3EA012106F8B763D0A01955246612E14D1`
+  - Portable ZIP 149,793,444 bytes SHA-256 `854907B4BFE484C58D08FDE0E15E16539E696EAA015057E6B511B6C7C52ADBD9`
+  - `app.asar` 4,566,665 bytes SHA-256 `B83609DD3E35960CD455192E79765815E9306BB6816126A9F4087DF8DBEE4BE6`
+- **Publication:** `main` pushed (`0defb81..b11bd87`). Annotated tag and GitHub Release `v0.5.55` published at `https://github.com/nct88/Grok-Build-Desktop/releases/tag/v0.5.55` with four assets (Setup 92,841,030, Portable EXE 92,417,931, ZIP 149,793,444, MANIFEST 2,774). Cloudflare R2 `ai-clone/version.json` reports Grok `0.5.55`; `https://dl.truong.it/ai-clone/grok-build/Grok-Build-Setup-0.5.55.exe` returns HTTP 200 with Content-Length 92,841,030.
+
+## 2026-09-17 — Grok CLI 1.0.34 integration alignment
+
+- **Yêu cầu / Triệu chứng:** Đối chiếu Grok Build CLI 1.0.34 (Sep 16, 2026) và triển khai nâng cấp tương thích cho Grok Build Desktop.
+- **Tính năng upstream:** Memory chính thức đạt GA (General Availability) với công cụ `grok memory`, MEMORY.md và cross-session recall; Markdown headings nhận theme colors chính xác; hỗ trợ MCP structured JSON data; an toàn checkpoint khi /rewind; hủy subagent ngầm khi phiên cha đóng.
+- **Giải pháp:** Cập nhật tài liệu tích hợp `docs/CLI_1.0.34.md`, xác nhận theme colors cho Markdown headings (`.md-body .md-h`, `.md-h1`–`.md-h6`) đồng nhất trên dark/light mode, bảo toàn cấu hình cross-session memory GA tương thích ngược.
+- **Tệp tác động:** `docs/CLI_1.0.34.md`, `CHANGELOG.md`, `fix-bug/FIX_LOG.md`.
+- **Kiểm chứng:** Kiểm tra `grok --version` báo 1.0.34, chạy kiểm thử toàn diện `npm test`, `check:arch`, `check:brand`, `check:packaging`, `check:release`.
+
+## 2026-09-10 — Grok CLI 1.0.25 dictation insertion parity (v0.5.54)
+
+- **Yêu cầu / Triệu chứng:** Đối chiếu Grok Build CLI mới nhất và bổ sung phần tích hợp phù hợp cho Desktop và IDE.
+- **Nguyên nhân:** Desktop SpeechRecognition luôn nối transcript vào cuối composer. Nếu người dùng đặt con trỏ hoặc bôi chọn một đoạn giữa prompt, nội dung đọc chính tả không theo vị trí chỉnh sửa. Đây lệch với hành vi Grok Build 1.0.25.
+- **Giải pháp:** Lưu giá trị/range gốc khi bắt đầu nghe; mỗi interim/final result thay đúng range đó và đặt caret sau transcript. Bổ sung helper thuần cùng regression test. Workflow controls đã có trong Desktop; các hành vi runtime khác tiếp tục do CLI/ACP sở hữu.
+- **Tệp tác động:** `apps/desktop/renderer/lib/voiceTranscript.js`, `index.html`, `app.js`, `scripts/test-voice-transcript.mjs`, `docs/CLI_1.0.25.md`.
+- **Kiểm chứng:** Chạy focused test, full Desktop test/visual gate và build trước đóng gói; kết quả cuối được ghi trong handoff.
+
+## 2026-09-09 — Sidebar dự án đang xử lý lên đầu + thời gian + cuộn cuối hội thoại
+
+- **Target version:** 0.5.54
+- **Yêu cầu gốc / Triệu chứng (Symptom):** Cuộn xuống cuối hội thoại thì mất nội dung. Sidebar không đưa dự án đang trao đổi lên đầu. Không thấy mốc thời gian (7d / 45m) bên phải dự án và cuộc trao đổi.
+- **Nguyên nhân gốc rễ (Root Cause):**
+  - Timeline ảo: khi ước lượng chiều cao lệch, tin cuối nằm trong `spacerBottom` nên cuộn tới đáy không mount được.
+  - `touchRecentProject` cố ý không promote dự án đã có (kéo-thả giữ thứ tự).
+- **Giải pháp chi tiết (Resolution):** Pin dải nhìn khi ở cuối transcript. Promote dự án đang mở/chat lên đầu danh sách. Hiện tuổi tương đối bên phải hàng dự án (session mới nhất) và hàng trao đổi (`updatedAt`); đơn vị theo ngôn ngữ app (EN `45m`/`7d`, VI `45p`/`7ng`).
+- **Danh sách file tác động:** `apps/desktop/renderer/lib/timelineView.js`, `domHelpers.js`, `app.js`, `styles.css`; `apps/desktop/src/main.cjs`; `scripts/test-relative-time.mjs`, `test-sidebar-project-runtime.mjs`, `test-project-session-sync-ui.mjs`; `package.json`.
+- **Kiểm chứng (Verification Proof):** `npm run check` exit 0 (arch, packaging, brand, release contract, 30 E2E, visual 1000×640 + 1440×900). `publish-release.ps1 -Version 0.5.54` exit 0. Artifact unsigned local candidate:
+  - Setup `Grok-Build-Setup-0.5.54.exe` 92,839,028 bytes SHA-256 `701EF0BE2CAA760CB273C4A15D6BA5A6BF0199859480CD1FA489ECC756E65EC6`
+  - Portable EXE 92,416,008 bytes SHA-256 `6ACA71B2842F1B6074785161961AFBE446C85FA9B2760F8BC0CAC9EF099142D3`
+  - Portable ZIP 149,793,236 bytes SHA-256 `D4B0035BC8388B82FA2282EBBBA6B71AA2B327875A024AE44B140C8A6F76CFA4`
+  - `app.asar` 4,565,577 bytes SHA-256 `192EDD5825AC96CA6785837982FAD974EDB5FBC19E2AD06190604ADA976E13E1`
+- **Publication:** `main` pushed (`ebb2841..81fdf0a`). Annotated tag and GitHub Release `v0.5.54` target `81fdf0ada9eb0aa071658bbdd8deb5522e991a8c` with four assets matching local sizes (Setup 92,839,028, portable EXE 92,416,008, ZIP 149,793,236, MANIFEST 2,774). Cloudflare R2 `ai-clone/version.json` reports Grok `0.5.54`; `https://dl.truong.it/ai-clone/grok-build/Grok-Build-Setup-0.5.54.exe` returns HTTP 200 with Content-Length 92,839,028.
+
+## 2026-09-09 — Chấp nhận plan.md không còn lỗi Path outside workspace (v0.5.53)
+
+- **Target version:** 0.5.53
+- **Yêu cầu gốc / Triệu chứng (Symptom):** Nhấn Chấp nhận `plan.md` báo `Error invoking remote method 'fs:writeText': Error: Path outside workspace is not allowed.`
+- **Nguyên nhân gốc rễ (Root Cause):** Diff/tool gửi đường dẫn tương đối (`plan.md`). `assertWorkspacePath` dùng `path.resolve` theo cwd của process Electron (thư mục app), không theo thư mục dự án. `fs:writeText` cũng không fallback sandbox explorer như `fs:readText`.
+- **Giải pháp chi tiết (Resolution):** Resolve path tương đối vào `workspaceRoot`. `../` vẫn bị chặn. Ghi Accept/Reject thử sandbox agent rồi sandbox explorer (sidebar/recents) giống đọc file.
+- **Danh sách file tác động:** `apps/desktop/src/security.cjs`, `apps/desktop/src/main.cjs`, `scripts/e2e-desktop.mjs`, version/README/CHANGELOG/`docs/releases/0.5.53.md`.
+- **Kiểm chứng (Verification Proof):** Test E2E trước sửa fail đúng `Path outside workspace is not allowed.` với `plan.md`. Sau sửa `npm run check` exit 0 (30 E2E, visual 1000×640 + 1440×900). `publish-release.ps1 -Version 0.5.53` exit 0. Artifact unsigned local candidate:
+  - Setup `Grok-Build-Setup-0.5.53.exe` 92,841,380 bytes SHA-256 `5496049DCAB0073C80F825BF650ED2F3240D0CE2BADDF32DA14FA62F720ACFE8`
+  - Portable EXE 92,418,268 bytes SHA-256 `56FB79951225FDAEFB3982DAC2A50F2DEB41500F5EEA16553EF8A08E0F150873`
+  - Portable ZIP 149,791,380 bytes SHA-256 `8CF46326132994E58E30BF3737E7BA0A324328B7F845697CC034A7E96DB06C14`
+  - `app.asar` 4,559,119 bytes SHA-256 `ACE8C5A44CE4445704D4E2F841F3160E3E8578BE20A4285ED4284F1C04D514AC`
+- **Publication:** `main` pushed (`806039e..ea93443`). Annotated tag and GitHub Release `v0.5.53` target `ea93443fb6b700fdfa5560e519e569fe54b9ddd3` with four assets matching local sizes (Setup 92,841,380, portable EXE 92,418,268, ZIP 149,791,380, MANIFEST 2,774). Cloudflare R2 `ai-clone/version.json` reports Grok `0.5.53`; `https://dl.truong.it/ai-clone/grok-build/Grok-Build-Setup.exe` returns HTTP 200 with Content-Length 92,841,380.
+
+## 2026-09-09 — Xem file Markdown kế hoạch/báo cáo dạng tài liệu (v0.5.52)
+
+- **Target version:** 0.5.52
+- **Yêu cầu gốc / Triệu chứng (Symptom):** File `.md` (plan, báo cáo) hiện như diff/mã nguồn xanh-đỏ, không đọc được bảng, tiêu đề, in đậm, code màu hay sơ đồ sau khi Grok viết xong.
+- **Nguyên nhân gốc rễ (Root Cause):** Timeline tool card và review pane luôn vẽ unified diff; cửa sổ Tệp luôn highlight source. Renderer Markdown chỉ dùng cho câu trả lời chat, không áp vào nội dung file `.md`.
+- **Giải pháp chi tiết (Resolution):** Tool ghi `.md` khi hoàn tất hiện tài liệu đã dựng (bảng, heading màu, code highlight, Mermaid flowchart/sequence), kèm nút Diff. Cửa sổ Tệp mặc định Preview cho Markdown; review có nút Tài liệu. Không tắt preference Preview khi mở file khác.
+- **Danh sách file tác động:** `apps/desktop/renderer/lib/markdown.js`, `syntaxHighlight.js`, `offthread.js`, `timelineView.js`, `workers/contentWorker.js`, `app.js`, `index.html`, `styles.css`, `i18n.js`; `scripts/e2e-desktop.mjs`, `test-syntax-highlight.mjs`, `verify-codex-session-ui.mjs`, `verify-project-explorer.mjs`; version/README/CHANGELOG/`docs/releases/0.5.52.md`.
+- **Kiểm chứng (Verification Proof):** `npm run check` exit 0. Architecture/packaging/brand/release OK. 30 E2E passed. Visual 1000×640 + 1440×900, session UI tools=3 với plan.md đã dựng, explorer Preview `plan.md` có h1/table/diagram/code màu. `publish-release.ps1 -Version 0.5.52` exit 0. Artifact unsigned local candidate:
+  - Setup `Grok-Build-Setup-0.5.52.exe` 92,840,495 bytes SHA-256 `D0E6F8B455D762419924BD0FA2078E9E462FF805F11BACE101E3C2E7D2EC8906`
+  - Portable EXE 92,417,463 bytes SHA-256 `F1CAD20BE858921A8DD8A0949F17A9703060FD7968E251A24D7FEFED158CD89A`
+  - Portable ZIP 149,791,219 bytes SHA-256 `80A0ABF1092B7D4F36283BCE3E83723E073D7AFF7D04A437F2E1CF0D6C906137`
+  - `app.asar` 4,558,257 bytes SHA-256 `CFAD42DCD81569276CA128B75081CB66C13C7E0D50FE46BA314DF8E613CD256C`
+- **Publication:** `main` pushed (`5557b24..1969c53`). Annotated tag and GitHub Release `v0.5.52` target `1969c5308932158668b14fbd98ceb9a0f93efd35` with four assets matching local sizes (Setup 92,840,495, portable EXE 92,417,463, ZIP 149,791,219, MANIFEST 2,774). Cloudflare R2 `ai-clone/version.json` reports Grok `0.5.52`; `https://dl.truong.it/ai-clone/grok-build/Grok-Build-Setup.exe` returns HTTP 200 with Content-Length 92,840,495.
+
+## 2026-09-08 — Menu Thông tin phiên → Phiên không còn thanh cuộn (v0.5.51)
+
+- **Target version:** 0.5.51
+- **Yêu cầu gốc / Triệu chứng (Symptom):** Menu usage (Thông tin phiên → Phiên) có thanh cuộn. Số hàng đổi theo tài khoản nên popup cần co giãn theo nội dung, không cuộn.
+- **Nguyên nhân gốc rễ (Root Cause):** `#menuUsage` dùng `max-height` cố định (`560px`/`800px`) và `overflow: auto`. Hàng phiên `min-height` 34–36px, giá trị wrap (`overflow-wrap: anywhere`), cộng footer Refresh/Manage billing, nên 11–16 hàng vượt max-height.
+- **Giải pháp chi tiết (Resolution):** Popup `height: max-content`, `max-height: calc(100vh - 104px)`, `overflow: hidden`. Hàng phiên cao 26px, một dòng, ellipsis. Footer billing chỉ hiện ở tab Ngữ cảnh/Tài khoản. Visual gate bắt `overflowY !== auto|scroll` và `scrollHeight <= clientHeight` ở 1440×900 và 1000×640.
+- **Danh sách file tác động:** `apps/desktop/renderer/styles.css`, `apps/desktop/renderer/app.js`, `scripts/verify-codex-session-ui.mjs`, `product/VERSION`, `package.json`, `apps/desktop/package.json`, `package-lock.json`, `CHANGELOG.md`, `docs/releases/0.5.51.md`, `README.md`, `README.en.md`.
+- **Kiểm chứng (Verification Proof):** `npm run check` exit 0. Architecture/packaging/brand/release OK. 30 E2E passed. Visual 1000×640 + 1440×900, session-info 16 hàng, `overflowY: hidden`, không vertical overflow. `publish-release.ps1 -Version 0.5.51` exit 0. Artifact unsigned local candidate:
+  - Setup `Grok-Build-Setup-0.5.51.exe` 92,835,860 bytes SHA-256 `B446C666629CE65BF57DA2F50F008B370313FE51BCB0844432B5B3503D8AAA9F`
+  - Portable EXE 92,412,844 bytes SHA-256 `BBC9E1F9DFDD8AEB5512A21EBC5579C70559509D21B05225DDF03EE65B116153`
+  - Portable ZIP 149,785,231 bytes SHA-256 `7C4387562B79CAD34DD22B9F441333857E660339DC63E5C7DA414C42CD968D45`
+  - `app.asar` 4,531,660 bytes SHA-256 `1482CE49DFD26E4B920A50579851BC63208FC06AC4F5D8DD827B50930A959717`
+- **Publication:** `main` pushed (`3106007..62e1850`). Annotated tag and GitHub Release `v0.5.51` target `62e18508213feb89956347f2926fc2f89adb616a` with four assets matching local sizes (Setup 92,835,860, portable EXE 92,412,844, ZIP 149,785,231, MANIFEST 2,774). Cloudflare R2 `ai-clone/version.json` reports Grok `0.5.51`; `https://dl.truong.it/ai-clone/grok-build/Grok-Build-Setup.exe` returns HTTP 200.
+
+## 2026-08-31 — Phát hành Grok Build Desktop 0.5.50
+
+- **Target version:** 0.5.50
+- **Yêu cầu gốc / Triệu chứng (Symptom):** Đóng gói, commit, push, GitHub Release và R2 cho các thay đổi terminal ConPTY/xterm, toggle titlebar, menu chuột phải sidebar và spinner cuộc thảo luận.
+- **Nguyên nhân gốc rễ (Root Cause):** n/a (release).
+- **Giải pháp chi tiết (Resolution):** Bump 0.5.50, ghi chú song ngữ, `asarUnpack` cho `node-pty`, `npm run check` rồi `publish-release.ps1`. Artifact unsigned local candidate.
+- **Danh sách file tác động:** source terminal/sidebar/spinner, `docs/releases/0.5.50.md`, README/CHANGELOG, `dist/0.5.50/` (gitignored).
+- **Kiểm chứng (Verification Proof):** `npm run check` exit 0, 30 E2E. Artifact:
+  - Setup `Grok-Build-Setup-0.5.50.exe` 92,834,263 bytes SHA-256 `A82906DA21DA1DE5725CC2EB4D8E09474385546B6CD736B1500EFC011EC5C23A`
+  - Portable EXE 92,411,243 bytes SHA-256 `E2CFF2DE64A37DE33E55A5B293FBAAA23477588267AC3B7483AC2E2711712B30`
+  - Portable ZIP 149,784,913 bytes SHA-256 `3D4B4EB0C8320F78E6EBDA5C3C29963138D8EEF1BE06AE6074A4BB94BF951432`
+  - `app.asar` 4,529,907 bytes SHA-256 `FCDF3D60B7BBD818251F023B27A72FF23B81D03EB79EB7051FA90B1256D3FCD3`
+
+## 2026-08-30 — Menu chuột phải sidebar dự án + spinner cuộc thảo luận (v0.5.49)
+
+- **Target version:** 0.5.49
+- **Yêu cầu gốc / Triệu chứng (Symptom):** Chuột phải trên thư mục dự án / chat trong sidebar không có menu (chỉ menu Electron mặc định). Cần đối chiếu Codex và thêm spinner xoay khi cuộc thảo luận đang chạy, góc phải header + hàng chat; tối thì vòng sáng, sáng thì vòng tối.
+- **Nguyên nhân gốc rễ (Root Cause):** `project-item` và `project-chat-item` không `preventDefault` trên `contextmenu`. Hàng chat chỉ có Export/Move/Delete hiện khi hover, che click. Không có busy spinner theo theme trên header/hàng chat.
+- **Giải pháp chi tiết (Resolution):** Menu chuột phải Desktop, không clone đủ bộ Codex. Thư mục dự án: Chat mới, Mở thư mục, Sao chép đường dẫn, Mở IDE, Gỡ khỏi danh sách. Chat: Đổi tên, Di chuyển, Sao chép (ID phiên / Markdown), Xuất, Xóa. Bỏ Pin/Archive/Share/Unread/cửa sổ mới vì không có API Desktop. Spinner `busy-spin` dùng `var(--text)` nên đảo màu theo theme. Gỡ nút hover để click hàng chat không bị chặn.
+- **Danh sách file tác động:** `apps/desktop/renderer/app.js`, `index.html`, `styles.css`, `lib/i18n.js`; `scripts/test-sidebar-context-menu.mjs`, `test-project-session-sync-ui.mjs`, `test-sidebar-project-runtime.mjs`; `package.json`.
+- **Kiểm chứng (Verification Proof):** `node scripts/test-sidebar-context-menu.mjs` pass (menu dự án/chat, submenu sao chép, spinner dark rgb(243,243,243) / light rgb(17,17,17)). `npm run check` exit 0: 30 E2E, visual 1000×640 + 1440×900.
+- **Bài học rút ra:** Nút hover trên hàng sidebar dễ nuốt click; menu chuột phải Codex chỉ giữ các lệnh đã có IPC trên Desktop.
+
+## 2026-08-30 — Nút titlebar nhấn lần 2 không tắt terminal (v0.5.49)
+
+- **Target version:** 0.5.49
+- **Yêu cầu gốc / Triệu chứng (Symptom):** Nút terminal trên titlebar mở dock lần 1, nhưng lần nhấn thứ 2 không tắt được. Playwright `click()` vẫn pass vì CDP bỏ qua hit-test kéo cửa sổ.
+- **Nguyên nhân gốc rễ (Root Cause):** `.titlebar` gắn `-webkit-app-region: drag`. Sau khi dock mở (layout shift + xterm focus), Chromium/Electron nuốt event `click` thứ hai trên nút `no-drag`; chỉ còn `pointerdown`. Handler cũ chỉ lắng nghe `click` nên lần 2 không chạy. Không phải PTY tự mở lại dock.
+- **Giải pháp chi tiết (Resolution):** Chỉ spacer `.titlebar-drag` được phép drag; toàn bộ titlebar, menu và icon button là `no-drag`. Chuột toggle trên `pointerdown` (capture); bàn phím vẫn dùng `click` với `detail === 0` để không bị double-toggle. Thêm runtime test phát `pointerdown` không kèm `click`.
+- **Danh sách file tác động:** `apps/desktop/renderer/app.js`, `apps/desktop/renderer/styles.css`; `scripts/test-terminal-toggle.mjs`, `scripts/test-integrated-terminal.mjs`; `package.json`.
+- **Kiểm chứng (Verification Proof):** `node scripts/test-terminal-toggle.mjs` pass (mở/đóng bằng chuột, đóng bằng pointerdown-only, nút ×, burst 4 click, PTY không tự mở lại). `npm run check` exit 0: architecture/packaging/brand/release, 30 E2E, visual 1000×640 + 1440×900.
+- **Bài học rút ra:** Event `click` trên nút trong titlebar Electron không phải nguồn sự thật; test phải phát `pointerdown` tách khỏi `click`, và không lấy Playwright CDP làm bằng chứng cho hit-test kéo cửa sổ.
+
+## 2026-08-30 — Nút đóng terminal bị PTY stream mở lại ngay (v0.5.49)
+
+- **Yêu cầu gốc / Triệu chứng (Symptom):** Khi terminal tích hợp đang mở, bấm biểu tượng terminal góc trên phải hoặc nút × trong thanh terminal không thể giữ trạng thái đóng.
+- **Nguyên nhân gốc rễ (Root Cause):** Listener `term:chunk` tự gọi `setTermVisible(true)` với mọi chunk output. PTY PowerShell phát prompt/stream sau thao tác đóng nên dock bị mở lại ngay.
+- **Giải pháp chi tiết (Resolution):** Giữ trạng thái ẩn là lựa chọn tường minh của người dùng; output PTY vẫn được đưa vào xterm nhưng không thay đổi visibility. `termVisible` là state duy nhất, và nút tiêu đề, nút ×, command palette, `Ctrl+T` cùng dùng transition toggle/close thay vì suy luận từ class CSS đang animation. Nút trên title bar bắt click ở capture phase để nó thắng drag/event của Electron khi bấm lặp. Bổ sung regression contract để chặn việc thêm lại auto-open theo background stream.
+- **Kiểm chứng (Verification Proof):** Runtime Electron kiểm tra cả nút tiêu đề và nút × khi shell đang chạy; đóng vẫn giữ dock collapsed sau output nền. Năm chu kỳ mở/đóng liên tiếp, luân phiên hai nút, đều pass; ba click nhanh trên title bar khi terminal đang mở cũng kết thúc ở trạng thái đóng. Bộ terminal contract và test suite chạy lại sau sửa đổi.
+
+## 2026-08-30 — Terminal tích hợp Windows dùng ConPTY + PowerShell (v0.5.49)
+
+- **Yêu cầu gốc / Triệu chứng (Symptom):** Terminal dock chỉ là giao diện từng dòng chạy `cmd.exe` qua pipe. ANSI bị xoá và ứng dụng TUI (`grok`, `vim`, `lazygit`…) bị chặn; người dùng yêu cầu terminal tích hợp vận hành như terminal Windows gốc trong Codex.
+- **Nguyên nhân gốc rễ (Root Cause):** `InteractiveShell` tạo child process với `stdio: ["pipe", "pipe", "pipe"]`, nên không có pseudo-terminal Windows, không truyền được cursor/resize/escape sequences.
+- **Giải pháp chi tiết (Resolution):** Thay interactive shell bằng `node-pty`/ConPTY, mặc định `powershell.exe`, thêm IPC resize, và thay `<pre>` + input line-mode bằng `xterm.js` cùng FitAddon. Bàn phím, ANSI, alternate screen và kích thước terminal được chuyển hai chiều trực tiếp qua PTY; vẫn giữ các nút Clear, Restart và mở terminal ngoài.
+- **Danh sách file tác động:** `apps/desktop/src/terminalHost.cjs`, `main.cjs`, `preload.cjs`, `ipcContract.cjs`; `apps/desktop/renderer/index.html`, `app.js`, `styles.css`, các xterm vendor assets; package manifests/lockfile; `scripts/test-integrated-terminal.mjs`.
+- **Kiểm chứng (Verification Proof):** Node ConPTY smoke in ra `PTY_OK`; Electron runtime mở dock tại `E:\projects\Grok-Build-Desktop`, hiển thị banner Windows PowerShell và prompt đúng thư mục, sau đó chạy `Write-Output PTY_INTERACTION_OK` thành công. Contract test, architecture, packaging, release và visual layout gates đã chạy.
+- **Bài học rút ra:** Đổi shell từ CMD sang PowerShell không tự biến pipe thành terminal; TUI trong Electron cần cả PTY/ConPTY và emulator ANSI ở renderer.
+
+## 2026-08-29 — Grok CLI 1.0.13 ACP host compatibility (v0.5.49)
+
+- **Target version:** 0.5.49
+- **Yêu cầu gốc / Triệu chứng (Symptom):** Desktop vẫn tự cấp quyền cho `dontAsk`/Auto và có thể bỏ qua `PreToolUse { decision: "ask" }`; resume có thể truyền lại worktree flags; dừng agent Windows chỉ kết thúc process cha.
+- **Nguyên nhân gốc rễ (Root Cause):** Permission handler gộp `bypassPermissions`, `dontAsk` và Auto thành một nhánh allow; launch args không phân biệt resume; ACP client không kết thúc process tree.
+- **Giải pháp chi tiết (Resolution):** Chỉ Full access tự duyệt toàn bộ; Auto chỉ duyệt read/search/think/fetch; `dontAsk` và hook ask luôn tạo card. Card nhận metadata hook/options; resume bỏ worktree flags; client dùng `taskkill /T` trên Windows và metadata session gửi permission mode.
+- **Danh sách file tác động:** `agentSupervisor.cjs`, `launchArgs.cjs`, `main.cjs`, renderer permission card, ACP client/process tree/session metadata, tests và release metadata 0.5.49.
+- **Kiểm chứng (Verification Proof):** `grok --version` = 1.0.13, `grok update` báo already up to date; `npm run check` pass với 30 E2E và toàn bộ visual/release gates.
+- **Bài học rút ra:** Không suy diễn `dontAsk` thành bypass permissions; mọi hook yêu cầu xác nhận phải thắng host auto-approval.
+
+---
+
 ## 2026-08-28 — Sửa lỗi `ReferenceError: sup is not defined` (v0.5.48)
 
 - **Target version:** 0.5.48
@@ -115,3 +331,112 @@ App đang chạy cần đóng rồi mở lại từ source `E:\projects\Grok-Bui
 - **Release gate:** Final `npm run check` passed on 0.5.42. The same sidebar regression passed against the packaged executable, packaged layout/slash-menu smokes passed, all manifest byte/SHA-256 values matched, renderer source matched `app.asar`, and a 0.5.41-to-0.5.42 update-pack smoke created a backup and applied the exact manifest hash.
 - **Publication:** Commit `5eeea6a73562be1abd8d54c75a5205a19b8841a0` was pushed to `origin/main`; annotated tag and public GitHub Release `v0.5.42` target that commit with four hash-matching assets. R2 catalog reports 0.5.42 and uses the versioned public Setup URL; the downloaded installer returns 90,893,969 bytes and SHA-256 `1F2631877888F00861B999F5C7DBEB4FC6D3A4FCD8AF3FA8C947F8A40A5A9052`.
 - **Signing:** Setup and portable EXE remain unsigned; bilingual release notes retain the SmartScreen and SHA-256 verification warning.
+
+## 2026-08-24 — Released Grok Build Desktop 0.5.41
+
+- **Target version:** 0.5.41
+- **Change:** Published accessible mouse/keyboard resizing for the sidebar, right panel and Files split; independent Explorer/preview collapse and persisted widths; and content-sized Quick add/preset chips.
+- **Release gate:** Final `npm run check` passed against versioned source with 29 E2E checks and all visual gates. Packaged layout/slash-menu runtime smokes, manifest byte/SHA checks, source-to-ASAR matching and a 0.5.40-to-0.5.41 update-pack smoke all passed.
+- **Publication:** Commit `41e154382db8928199132b9a9ba9d78401bef4a7` was pushed to `origin/main`; annotated tag and public GitHub Release `v0.5.41` target that commit. All four GitHub asset digests match the local manifest/artifacts. Cloudflare R2 `version.json` reports Grok `0.5.41`, and the public installer returns HTTP 200 with matching 90,893,920 bytes and SHA-256 `B5CE1DC892FB16B2D2BFB9EE3E10E5B00331D0FF135D044EA7BA0D91EC21E66A`.
+- **Signing:** Setup and portable EXE remain unsigned; bilingual release notes retain the SmartScreen and SHA-256 verification warning.
+
+## 2026-08-24 — Resizable/collapsible Files panes and content-sized Quick add chips
+
+- **Target version:** next development candidate after 0.5.40
+- **Symptom:** The Project Explorer/file-preview divider was fixed, so users could not allocate width to “Select a file” or collapse either inner pane. Existing outer dividers were mouse-only and visually hard to discover. MCP Quick add chip backgrounds stayed 28 px wide while labels such as `Filesystem` overflowed and collided.
+- **Root cause:** `.file-workbench` encoded a fixed two-column `clamp(...)` grid with no interactive state or persistence. The shared splitter setup handled only two mouse-driven outer widths. A legacy `.tool-chip` icon alias imposed `width: 28px; display: grid` on text chips, while the later preset rule changed padding/colors but did not reset width/display.
+- **Resolution:** Added a visible, accessible Files separator with mouse and keyboard resizing, bounded min widths, double-click reset and persisted width. Explorer and preview now each collapse to a 36 px restore rail, never collapse simultaneously, and retain state across reloads. All three vertical separators expose ARIA values and keyboard controls; outer sidebar/right-panel collapse controls retain their saved widths. Removed the conflicting legacy chip constraint and made preset chips content-sized `inline-flex` controls that wrap with a 6 px gap.
+- **Affected files:** `apps/desktop/renderer/index.html`, `apps/desktop/renderer/styles.css`, `apps/desktop/renderer/app.js`, `apps/desktop/renderer/lib/i18n.js`, `scripts/verify-resizable-panes.mjs`, `package.json`.
+- **Verification:** `npm run check` passed: architecture, packaging/release contracts, build, security, 29 E2E checks and all visual gates. The focused runtime gate covers mouse/keyboard resize, explorer/preview/sidebar/right-panel collapse and restore, reload persistence, compact right-panel bounds, Quick add text containment/wrapping, dark/light at 1181×700 and 1904×1000, plus a native 2160×1200 render at 150%. Existing Project Explorer empty/error and 125%/150% matrices remain green.
+
+## 2026-08-24 — Released Grok Build Desktop 0.5.40
+
+- **Target version:** 0.5.40
+- **Change:** Published independent multi-tab runtime/queues/cache and rename behavior, the project-only session header, dedicated Project Explorer, language labels and syntax-colored previews, plus the expanded Grok CLI `/hooks-trust` and MCP trust workflow.
+- **Release gate:** Final `npm run check` passed against versioned source with 29 E2E checks and all visual gates. Packaged layout and packaged 67-row slash-menu smoke checks passed. Manifest byte counts and SHA-256 values matched all four checked artifacts.
+- **Publication:** Commit `2dbac1283f02d1ee7a4aff8f7ab8ac97e7131b8e` was pushed to `origin/main`; tag and public GitHub Release `v0.5.40` target that commit. GitHub asset sizes/digests match the local manifest. Cloudflare R2 `version.json` reports Grok `0.5.40`, and the public installer returns HTTP 200 with `Content-Length: 90893418`.
+- **Signing:** Setup and portable EXE remain unsigned; bilingual release notes retain the SmartScreen and SHA-256 verification warning.
+
+## 2026-08-24 — Project-only session header, syntax-colored preview and dedicated file explorer
+
+- **Target version:** 0.5.40
+- **Symptom:** The session header repeated project path/effort metadata instead of staying identifiable at a glance; file previews rendered all source text in one color; the short `Project files` list navigated by replacing itself, shared a narrow vertical stack with the preview, hid useful dot-folders, and reduced failures to an unhelpful `Cannot list directory` message.
+- **Root cause:** Header state and session-title state both wrote to `convTitle`; the preview assigned raw content through a single `textContent`; directory browsing had no persistent tree model, lazy expansion, language metadata, or explicit loading/empty/error presentation.
+- **Resolution:** Decoupled the header from chat titles so it always shows only the current project basename (full path remains a tooltip/state value); moved Git context into the explorer; split Files into a responsive Project Explorer column and independent code-preview column; added lazy expandable folders, selection, collapse/refresh controls, useful dot-folder visibility, language labels, empty/error/retry states, safe race handling, line numbers, and dependency-free syntax tokenization rendered with DOM `textContent` spans for common programming/config/markup languages.
+- **Affected files:** `apps/desktop/renderer/app.js`, `apps/desktop/renderer/index.html`, `apps/desktop/renderer/lib/i18n.js`, `apps/desktop/renderer/lib/syntaxHighlight.js`, `apps/desktop/renderer/styles.css`, `apps/desktop/src/main.cjs`, `scripts/test-syntax-highlight.mjs`, `scripts/verify-project-explorer.mjs`, `package.json`.
+- **Verification:** `npm run check` passed: architecture, packaging, brand/release contracts, build, 29 E2E checks, security, existing visual regressions, and the new Project Explorer gate. The new gate verifies project-only header content, lazy/empty/error tree behavior, per-file language labels, distinct Rust keyword/comment/number colors, line rendering and non-overlapping explorer/preview geometry in dark/light at 1181×700, 1440×900 and 1904×1000 plus 125%/150% scale. Release packaging and publication evidence is recorded in the 0.5.40 release entry below.
+
+## 2026-08-24 — Desktop tabs preserve running tasks, cached content and per-tab runtime
+
+- **Target version:** 0.5.40
+- **Symptom:** Switching from a running Task A tab to Task B and back could make both appear stopped; inactive/non-running tabs reloaded slowly; tab names were not directly editable; elapsed processing feedback did not continue visibly on background tabs.
+- **Root cause:** Session tabs were presentation snapshots over one active ACP process and one global renderer runtime. Activating a tab called `loadSession`, which replaced the process session, while `busy`, elapsed timing, queued prompts and incoming events were not owned by a tab.
+- **Resolution:** Made tab activation cache-only; bind/resume an agent only on send; allocate the existing second AgentSupervisor slot when another tab is running; route/coalesce inactive-slot events and replay them on activation; keep runtime and prompt queues per tab; show a running dot plus live elapsed time; add direct double-click/right-click rename with persistence after a new session is created.
+- **Affected files:** `apps/desktop/renderer/app.js`, `apps/desktop/renderer/lib/sessionTabs.js`, `apps/desktop/renderer/lib/i18n.js`, `apps/desktop/renderer/styles.css`, `scripts/e2e-desktop.mjs`, `scripts/verify-codex-session-ui.mjs`, `scripts/verify-session-tabs.mjs`, `package.json`.
+- **Verification:** `npm run check` passed: architecture, packaging, brand/release contracts, build, 29 E2E checks, security and all visual gates. Regression checks prove tab activation contains no backend resume, a second slot does not stop a running primary client, inactive streams are cached/coalesced, queues are isolated, and direct rename/runtime rendering works. Visual evidence passed dark/light at 1000×640, dark 1440×900 and 125%/150% scale. A live authenticated two-prompt Grok run was not executed; the live smoke gate remained intentionally skipped.
+
+## 2026-08-20 — Desktop slash menu covers Grok CLI commands including /hooks-trust
+
+- **Target version:** 0.5.40
+- **Symptom:** `/hooks-trust` (and most other Grok CLI slash commands) did not appear in the Desktop `/` menu, so a project-scoped MCP server such as Chrome DevTools could not be trusted from the composer.
+- **Root cause:** Desktop shipped a short curated builtin list plus local skills. Folder trust lived only in the CLI TUI (`/hooks-trust` / `--trust`) and was omitted from the Desktop catalog and MCP panel.
+- **Resolution:** Added the remaining Desktop-mappable CLI commands to the composer menu. UI actions open existing surfaces or write `%GROK_HOME%/trusted_folders.toml`; agent-side commands expand to prompts. MCP panel gained Trust/Revoke buttons and reconnects after trust so repo-local MCP can spawn. TUI-only render commands (`/vim-mode`, `/minimal`, `/fullscreen`, `/edit-prompt`) stay omitted.
+- **Affected files:** `apps/desktop/renderer/lib/slashCommands.js`, `apps/desktop/renderer/app.js`, `apps/desktop/renderer/index.html`, `apps/desktop/renderer/lib/i18n.js`, `apps/desktop/renderer/lib/timelineView.js`, `apps/desktop/renderer/styles.css`, `apps/desktop/src/folderTrust.cjs`, `apps/desktop/src/main.cjs`, `apps/desktop/src/preload.cjs`, `apps/desktop/src/ipcContract.cjs`, `scripts/test-slash-commands.mjs`, `scripts/verify-slash-menu.mjs`, `scripts/e2e-desktop.mjs`, `README.md`, `README.en.md`, `.grok/skills/use-mcp/SKILL.md`
+- **Verification:** `npm run check` passed (architecture, packaging, brand, release contract, slash unit tests, 28 E2E checks including `folderTrust store`, visual gates). Slash menu visual: 67 rows at 1000×640, scroll 218/2143, `/hooks-trust` present, `/work-a` filter + Tab insert still unique.
+
+## 2026-08-20 — Finished 0.5.39 GitHub/R2 publication
+
+- Target version: 0.5.39
+- Symptom: Desktop 0.5.39 was packaged, committed, pushed and tagged, but Grok Clone R2 still served 0.5.38. Grok Build IDE 1.0.11 was packed and pushed with README download links, but had no GitHub tag/release and R2 still served 1.0.10.
+- Root cause: Local packaging and `origin/main` finished first; GitHub release for IDE and Cloudflare R2 (`dl.truong.it/ai-clone/version.json`) were not run.
+- Resolution: Uploaded `Grok-Build-Setup-0.5.39.exe` and `Grok-Build-IDE-Setup-1.0.11.exe` to R2 and created GitHub Release `v1.0.11` with Setup, portable EXE/ZIP, VSIX, MANIFEST and BASE-PROVENANCE. Desktop `v0.5.39` GitHub assets were already present and hash-matched.
+- Affected files: R2 `ai-clone/version.json`; GitHub `nct88/Grok-Build-IDE` tag `v1.0.11`. No Desktop source change.
+- Verification: R2 HEAD sizes match local Setup (90,875,681 and 201,730,096). Public `version.json` is grok 0.5.39 / grok-ide 1.0.11. GitHub IDE assets SHA-256 match `dist/1.0.11/MANIFEST.json`. Desktop GitHub Setup HEAD is 90,875,681.
+
+## 2026-08-17 — Release 0.5.37: local Grok skill slash commands
+
+- Target version: 0.5.37
+- Change: Published workspace/profile `userInvocable` Grok skills in the Desktop slash menu with safe catalog filtering, explicit skill invocation, stable built-ins and responsive long-list behavior.
+- Release pipeline fix: Replaced the release scripts' dependency on the intermittently unavailable `Get-FileHash` cmdlet with .NET SHA-256 generation; the incomplete first candidate was isolated under `temp/` and never published.
+- Release gate: `npm run check`, packaged layout, packaged slash-menu visual verification and manifest hashes passed. Windows Setup and portable EXE remain unsigned and release notes retain the SmartScreen/SHA-256 warning.
+
+## 2026-08-17 — Workspace/profile Grok skills in the Desktop slash menu
+
+- Target version: next development candidate after 0.5.36
+- Symptom: The Desktop composer exposed only six hard-coded slash shortcuts, so the five user-invocable process skills installed for MetaPage (`context-watch`, `keep-request-scope`, `quota-handover`, `work-analysis`, `write-fix-log`) never appeared even though Grok CLI 1.0.4 discovered them. A long or previously scrolled command list could also hide the active first row at high display scale.
+- Root cause: `slashCommands.js` had no workspace/profile catalog source; the renderer could distinguish only prompt expansions and four UI actions. Menu rows also had no explicit overflow policy, the list retained stale `scrollTop`, and its fixed 220 px maximum ignored reduced CSS viewport height at 125–150% scale.
+- Resolution: Added a safe main-process `grok inspect --json` catalog that keeps only `userInvocable` skills physically stored under the active workspace `.grok/skills` or current `%GROK_HOME%/skills`. Runtime skill shortcuts are merged after stable built-ins and expand to an explicit skill instruction. Added request race protection, fail-closed empty fallback, full-text tooltips, ellipsis, scroll reset, and viewport-aware menu height.
+- Affected files: `apps/desktop/src/slashCatalog.cjs`, `apps/desktop/src/main.cjs`, `apps/desktop/src/preload.cjs`, `apps/desktop/src/ipcContract.cjs`, `apps/desktop/renderer/lib/slashCommands.js`, `apps/desktop/renderer/app.js`, `apps/desktop/renderer/styles.css`, `scripts/test-slash-commands.mjs`, `scripts/verify-slash-menu.mjs`, `package.json`.
+- Verification: The real isolated MetaPage profile returned exactly the five expected skill IDs through Grok CLI 1.0.4. `npm run check` passed, including build, 26 E2E checks, security/architecture/packaging/release gates, local-catalog unit coverage, dark/light 1000×640 renders, dark 1440×900, filtered/no-match/unavailable states, long content, scrolling, keyboard insertion, and 125%/150% scale geometry.
+
+## 2026-08-13 — Release 0.5.36: Grok CLI 1.0.3 session information
+
+- Target version: 0.5.36
+- Change: Added safe, detailed Session/Context/Account information with row copy and Copy all parity for Grok CLI 1.0.3.
+- Release gate: Architecture, packaging, brand, security, 26 E2E checks and responsive visual interaction coverage must pass against the final source version before publication.
+- Signing: Windows artifacts remain unsigned; release notes retain the SmartScreen and SHA-256 verification warning.
+
+## 2026-08-12 — Project/session synchronization and session interactions
+
+- Target version: 0.5.31 local installation candidate
+- Symptom: Choosing a project below the composer could leave the active chat attached to the previous sidebar project; reopening a tab could resume it with the currently selected project instead of its own project. Chats could not be reassigned after a wrong selection. Vietnamese sessions still exposed generic `Tool`/`Review` labels, local paths with spaces or source-line suffixes were not navigable, and ordinary session content had no right-click copy menu.
+- Root cause: The native folder picker updated renderer workspace state before the shared project transition, causing its same-path guard to skip the fresh-session transition. Session tabs stored only `sessionId`, not `cwd`. Persisted session relocation had no API. Dynamic timeline labels were not normalized/relocalized, Markdown path parsing excluded spaces, and context menus covered only media/path nodes.
+- Resolution: Made the shared project transition the only renderer update path, persisted `cwd` per tab and realigned composer/sidebar before resume, added safe session relocation with `summary.json` synchronization, localized dynamic Tool/Review surfaces, expanded local-path hydration, opened directory links correctly, and added a localized session copy/select context menu.
+- Affected files: `apps/desktop/renderer/app.js`, `apps/desktop/renderer/lib/sessionTabs.js`, `apps/desktop/renderer/lib/timelineView.js`, `apps/desktop/renderer/lib/i18n.js`, `apps/desktop/renderer/lib/markdown.js`, `apps/desktop/renderer/lib/workers/contentWorker.js`, `apps/desktop/renderer/lib/pathLinks.js`, `apps/desktop/src/main.cjs`, `apps/desktop/src/preload.cjs`, `packages/sessions/src/index.ts`.
+- Verification: `npm run check` passed; 26 E2E checks passed; project-picker/tab/sidebar synchronization and cross-project session move passed in real Electron; dark/light/1000×640 session renders passed; Vietnamese Tool/Review, spaced path with `:line`, and session right-click copy passed in the visual runtime gate.
+
+## 2026-08-12 — Windows packaging junction failure
+
+- Target version: 0.5.31 local installation candidate
+- Symptom: `electron-builder` stopped with an `UNKNOWN ... stat` error while traversing `node_modules/@grok-build/acp-client`, so no immutable release directory was created.
+- Root cause: Desktop listed internal workspaces as production dependencies even though packaged runtime code is loaded from `extraResources`; npm represented those workspaces as Windows junctions and electron-builder attempted to collect them as application `node_modules`.
+- Resolution: Classified the internal workspace links as build-time dependencies while retaining the compiled runtime bundles in `resources/packages` through the existing `extraResources` contract.
+
+## 2026-08-12 — Individual chat drag-and-drop between projects
+
+- Target version: 0.5.32 development candidate
+- Symptom: Dragging a nested chat row moved/reordered the entire project group instead of moving that chat to another project. The separate Move menu worked, but it did not satisfy the requested direct drag-and-drop workflow.
+- Root cause: `draggable` was attached to the whole `.project-block`, including its nested chat rows. Chat rows had no independent drag payload, and project drop handlers understood only project paths.
+- Resolution: Restricted project reordering to the project header, made every chat row independently draggable with a typed session payload, and taught project targets to distinguish chat moves from project reordering. Added visible drop-target and drag-source states while keeping the Move menu as an accessible fallback.
+- Affected files: `apps/desktop/renderer/app.js`, `apps/desktop/renderer/styles.css`, `apps/desktop/renderer/lib/i18n.js`, `scripts/test-project-session-sync-ui.mjs`.
+- Verification: The Electron integration drags a real fixture chat from project Alpha to project Beta, asserts the source/target trees and persisted `summary.json`, confirms project ordering is unchanged, and captures light/dark target plus post-drop evidence.

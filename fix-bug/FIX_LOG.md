@@ -1,5 +1,22 @@
 # Fix log
 
+## 2026-09-18 — Khắc phục lỗi render Markdown inline code trong link hiển thị số '0' (v0.5.58)
+
+- **Target version:** 0.5.58
+- **Yêu cầu gốc / Triệu chứng (Symptom):** Trong session chat, khi mô hình trả về tên tài liệu hoặc mã nguồn dạng link có chứa inline code (ví dụ: `[`docs/06-ADMIN_CMS_CANONICAL_SPEC.md`](docs/06-ADMIN_CMS_CANONICAL_SPEC.md)`), giao diện hiển thị tên link thành một con số `0` đơn độc thay vì tên file.
+- **Nguyên nhân gốc rễ (Root Cause):**
+  1. Trong hàm `renderInline()` của cả `markdown.js` và `contentWorker.js`, inline code được tokenize trước tiên bằng placeholder ký tự null: `\u00000\u0000` (index 0 trong mảng `tokens`).
+  2. Tiếp theo, link regex bắt toàn bộ cụm `[\u00000\u0000](path)` và gói thành token `\u00001\u0000` chứa thẻ `<a ...>\u00000\u0000</a>`.
+  3. Ở bước cuối, hàm chỉ chạy `text.replace(/\u0000(\d+)\u0000/g, ...)` một lần duy nhất (single-pass). Placeholder con `\u00000\u0000` bên trong thẻ `<a>` không bao giờ được giải nén đệ quy. Khi đưa vào DOM, trình duyệt nuốt các ký tự điều khiển ASCII Null `\u0000` và kết xuất ký tự hiển thị duy nhất là số `0`.
+- **Giải pháp chi tiết (Resolution):**
+  1. Thay thế `return text.replace(...)` bằng vòng lặp while có kiểm soát (`while (/\u0000\d+\u0000/.test(text) && guard++ < 10)`) trong `markdown.js` và `contentWorker.js`, đảm bảo mọi cấp độ token lồng nhau đều được giải nén trọn vẹn.
+  2. Bổ sung assertion kiểm thử hồi quy tự động trong `scripts/e2e-desktop.mjs` để xác nhận thẻ `<code>` được dựng đầy đủ bên trong thẻ `<a>` và không bao giờ xuất hiện chuỗi `>0</a>`.
+- **Kiểm chứng (Verification Proof):** Đạt 30/30 unit & E2E tests (`npm test`), `check:arch`, `check:packaging`, `check:release` exit 0. Artifacts:
+  - Setup `Grok-Build-Setup-0.5.58.exe` 92,841,450 bytes SHA-256 `CBC6F59B0CA46C85163FA04621AE26D79D7D4D8E9345FE1AC9EC26EF8927A51C`
+  - Portable EXE `Grok-Build-0.5.58-win32-x64-portable.exe` 92,418,431 bytes SHA-256 `6ACB5CCC35423E73B5A899E2DA55CA203A2281C4A104F2B28FB75A80741F6E4C`
+  - Portable ZIP `Grok-Build-0.5.58-win32-x64.zip` 149,793,631 bytes SHA-256 `CB8773F8B3073832B1DEDBF6E7BB2F93755E53C93F9606DC45F4FFE63332B7D0`
+  - `app.asar` 4,567,397 bytes SHA-256 `905F79AA6FE8E630BDCF62889BFDEB3A33433D418FE0F46CC72BB5E0D7310ACB`
+
 ## 2026-09-17 — Giải phóng cuộn lên khi đang suy luận/streaming và giới hạn scheduleRender (v0.5.57)
 
 - **Target version:** 0.5.57
