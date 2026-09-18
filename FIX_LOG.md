@@ -16,6 +16,7 @@
   - Portable EXE `Grok-Build-0.5.58-win32-x64-portable.exe` 92,418,431 bytes SHA-256 `6ACB5CCC35423E73B5A899E2DA55CA203A2281C4A104F2B28FB75A80741F6E4C`
   - Portable ZIP `Grok-Build-0.5.58-win32-x64.zip` 149,793,631 bytes SHA-256 `CB8773F8B3073832B1DEDBF6E7BB2F93755E53C93F9606DC45F4FFE63332B7D0`
   - `app.asar` 4,567,397 bytes SHA-256 `905F79AA6FE8E630BDCF62889BFDEB3A33433D418FE0F46CC72BB5E0D7310ACB`
+- **Publication:** `main` pushed (`890c2c2`). Annotated tag and GitHub Release `v0.5.58` published at `https://github.com/nct88/Grok-Build-Desktop/releases/tag/v0.5.58` with four assets (Setup 92,841,450, Portable EXE 92,418,431, ZIP 149,793,631, MANIFEST 2,774). Cloudflare R2 `ai-clone/version.json` reports Grok `0.5.58`; `https://dl.truong.it/ai-clone/grok-build/Grok-Build-Setup-0.5.58.exe` returns HTTP 200 with Content-Length 92,841,450.
 
 ## 2026-09-17 — Giải phóng cuộn lên khi đang suy luận/streaming và giới hạn scheduleRender (v0.5.57)
 
