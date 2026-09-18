@@ -1,5 +1,27 @@
 # Fix log
 
+## 2026-09-18 — Sửa lỗi ảo hóa timeline tạo mảng đen che mất nội dung khi cuộn lên (v0.5.59)
+
+- **Target version:** 0.5.59
+- **Yêu cầu gốc / Triệu chứng (Symptom):** Trong session chat dài, khi người dùng lướt chuột lên trên để đọc lại nội dung trước đó thì thấy một đoạn nội dung bị mất, giống như có một lớp phủ màu đen che mất nội dung ở đầu khung nhìn, tin nhắn dài phía trên bị cắt ngang chỉ còn trơ trọi một dòng cuối (ví dụ: `... hay bảng số giả.`).
+- **Nguyên nhân gốc rễ (Root Cause):**
+  1. Sai lệch ước tính chiều cao: `estimateHeight()` trong `timelineView.js` kiểm tra `item.meta?.open !== false` cho khối Thought, nhưng các Thought nạp từ lịch sử không có thuộc tính `open` nên luôn được tính là mở và cộng dồn chiều cao văn bản lên tới ~888px/khối, trong khi thực tế phần tử DOM ở trạng thái đóng chỉ cao ~28–32px. Với 45 Thought trong transcript, chiều cao ước tính bị đội lên hơn 6.000px.
+  2. Cưỡng ép ghim đuôi sai thời điểm: `visibleRange()` gọi `pinRangeToTail()` bất cứ khi nào `stickToBottom || nearEnd`. Khi lướt lên, nếu `nearEnd` bị kích hoạt do tổng chiều cao dịch chuyển, `start` bị ép kéo về gần cuối danh sách (chỉ số 80+). Khối đệm trên `spacerTop` bị đặt tới 14.000px trong khi vị trí cuộn `scrollTop` là ~13.050px (`spacerTop > scrollTop`), khiến khoảng đệm rỗng tràn vào màn hình tạo cảm giác bị mảng đen che mất nội dung.
+  3. Cơ chế bỏ qua cuộn thời gian cố định: `restoreScrollAnchor()` và `scrollEnd()` sử dụng `ignoreScrollUntil = performance.now() + 80`, nuốt trọn các sự kiện cuộn từ chuột hoặc thanh cuộn của người dùng, khiến `stickToBottom` không kịp nhả về `false`.
+  4. Mất neo cuộn sau khi render markdown ngoài luồng: `applyFinal` đo lại chiều cao nhưng không kích hoạt neo lại khung nhìn khi `stickToBottom === false`.
+- **Giải pháp chi tiết (Resolution):**
+  1. Chỉnh sửa `estimateHeight()`: khối Thought thu gọn ước lượng chính xác 32px (0px nếu tắt reasoning); khối assistant mở rộng thang đo lên tới 2400px; tool và tool_group ước lượng theo trạng thái đóng/mở thực tế.
+  2. Bất biến Zero Black Gap: loại bỏ `nearEnd` khỏi `pinRangeToTail()`, chỉ ghim đuôi khi `stickToBottom === true`. Áp dụng ràng buộc bất biến `top = Math.min(top, Math.max(0, scrollTop))` bảo đảm `spacerTop` không bao giờ vượt quá `scrollTop`.
+  3. Neo cuộn theo DOM thực tế: `captureScrollAnchor()` và `restoreScrollAnchor()` lưu giữ vị trí pixel tương đối của phần tử DOM thực đang hiển thị thay vì tính tổng chiều cao ước lượng giả định.
+  4. Lọc sự kiện cuộn tự động theo giá trị đích: thay thế `ignoreScrollUntil` bằng `programmaticScrollTop`, phát hiện cuộn lên tức thì (`top < lastUserScrollTop`) trên cả lăn chuột và kéo thanh cuộn.
+  5. Neo lại khi markdown ngoài luồng kết xuất: trong `applyFinal`, nếu `!stickToBottom` và chiều cao phần tử biến động >10px thì kích hoạt `scheduleRender()` để cập nhật thanh đệm và giữ nguyên vị trí đọc.
+- **Kiểm chứng (Verification Proof):** Đạt 31/31 unit & E2E tests (`npm test`), `check:arch`, `check:packaging`, `check:brand` exit 0. Artifacts:
+  - Setup `Grok-Build-Setup-0.5.59.exe` 92,841,050 bytes SHA-256 `2B5BA68F08AFA07BAC5A051EE1CD32ADC546C2FEBD6B9714BCE85B258126DB96`
+  - Portable EXE `Grok-Build-0.5.59-win32-x64-portable.exe` 92,418,049 bytes SHA-256 `2AB74043C753B37F8FE66A9E4C327CC24A8D236C5E4F4AE51E5134A2839FD67F`
+  - Portable ZIP `Grok-Build-0.5.59-win32-x64.zip` 149,794,031 bytes SHA-256 `5EDFDC3C36A60A65AEA7B67C35906D662080FF2F36FFA2A793E63CD99558046C`
+  - `app.asar` 4,569,179 bytes SHA-256 `CF9A450C203A5287E69870CA5E6492AE8C1AD4DC3D83E726CFC24178D9F5DD62`
+- **Publication:** Tag `v0.5.59`, GitHub Release `v0.5.59`, Cloudflare R2 `ai-clone/grok-build/`.
+
 ## 2026-09-18 — Khắc phục lỗi render Markdown inline code trong link hiển thị số '0' (v0.5.58)
 
 - **Target version:** 0.5.58

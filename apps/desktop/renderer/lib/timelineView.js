@@ -162,25 +162,43 @@
     let stickToBottom = true;
     let renderScheduled = false;
     let disposed = false;
-    /** Prevent scroll-handler from treating programmatic bottom snaps as user leave */
+    /** Target programmatic scroll position to ignore in scroll listener */
+    let programmaticScrollTop = -1;
     let ignoreScrollUntil = 0;
     let lastUserScrollTop = 0;
 
     function estimateHeight(item) {
       if (heightCache.has(item.id)) return heightCache.get(item.id);
+      if (item.kind === "thought" && opts.showReasoning && !opts.showReasoning()) {
+        return 0;
+      }
       const base = EST[item.kind] || 48;
       const textLen = (item.text || "").length;
       const lines = Math.ceil(textLen / 80);
-      // Open thought/tool groups are taller than collapsed chips
-      let openBoost = 0;
-      if (item.kind === "thought" && (item.streaming || item.meta?.open !== false)) {
-        openBoost = Math.min(240, 40 + Math.ceil(textLen / 60) * 14);
+      if (item.kind === "thought") {
+        // Collapsed thought chips in history are only ~32px; only open/streaming thoughts are tall
+        const isOpen = Boolean(item.streaming) || Boolean(item.meta?.open);
+        if (!isOpen) return 32;
+        const openBoost = Math.min(300, 40 + Math.ceil(textLen / 60) * 14);
+        return base + openBoost;
       }
       if (item.kind === "tool_group") {
         const n = (item.meta?.tools || []).length || 1;
-        openBoost = n * 36;
+        const isOpen = Boolean(item.streaming) || Boolean(item.meta?.open);
+        return isOpen ? base + n * 36 : base;
       }
-      return base + openBoost + Math.min(600, Math.max(0, lines - 2) * 15);
+      if (item.kind === "tool") {
+        const isOpen =
+          Boolean(item.meta?.open) ||
+          item.meta?.status === "running" ||
+          item.meta?.status === "pending";
+        return isOpen ? Math.min(400, base + Math.ceil(textLen / 60) * 16) : base;
+      }
+      if (item.kind === "assistant") {
+        // Assistant markdown responses can be substantial
+        return base + Math.min(2400, Math.max(0, lines - 2) * 20);
+      }
+      return base + Math.min(600, Math.max(0, lines - 2) * 15);
     }
 
     function measure(el, id) {
@@ -212,41 +230,42 @@
       if (force && store.length >= VIRTUAL_THRESHOLD) {
         scheduleRender();
       }
-      ignoreScrollUntil = performance.now() + 50;
       requestAnimationFrame(() => {
         if (disposed) return;
+        programmaticScrollTop = root.scrollHeight;
         root.scrollTop = root.scrollHeight;
         lastUserScrollTop = root.scrollTop;
       });
     }
 
-    /** Capture first visible item so remeasure doesn't jump mid-read */
+    /** Capture first visible mounted item relative to viewport top */
     function captureScrollAnchor() {
       if (stickToBottom) return null;
-      const items = store.items;
-      const top = root.scrollTop;
-      let acc = 0;
-      for (let i = 0; i < items.length; i++) {
-        const h = estimateHeight(items[i]);
-        if (acc + h > top + 1) {
-          return { id: items[i].id, offset: top - acc, index: i };
+      const rootTop = root.getBoundingClientRect().top;
+      for (const child of windowEl.children) {
+        const rect = child.getBoundingClientRect();
+        if (rect.bottom > rootTop + 2) {
+          const id = Number(child.dataset.itemId);
+          if (id) {
+            return { id, offset: rect.top - rootTop };
+          }
         }
-        acc += h;
       }
       return null;
     }
 
     function restoreScrollAnchor(anchor) {
       if (!anchor || stickToBottom) return;
-      const items = store.items;
-      let acc = 0;
-      for (let i = 0; i < items.length; i++) {
-        if (items[i].id === anchor.id) {
-          ignoreScrollUntil = performance.now() + 80;
-          root.scrollTop = Math.max(0, acc + anchor.offset);
-          return;
+      const el = nodeMap.get(anchor.id);
+      if (el && el.isConnected) {
+        const rootTop = root.getBoundingClientRect().top;
+        const currentOffset = el.getBoundingClientRect().top - rootTop;
+        const diff = currentOffset - anchor.offset;
+        if (Math.abs(diff) > 0.5) {
+          programmaticScrollTop = Math.max(0, root.scrollTop + diff);
+          root.scrollTop = programmaticScrollTop;
+          lastUserScrollTop = root.scrollTop;
         }
-        acc += estimateHeight(items[i]);
       }
     }
 
@@ -599,12 +618,15 @@
         });
         hydrateImages(el);
         mountMediaStrip(el, item);
-        measure(el, item.id);
+        const prevH = heightCache.get(item.id);
+        const h = measure(el, item.id);
         if (stickToBottom) {
           if (store.length >= VIRTUAL_THRESHOLD) {
             scheduleRender();
           }
           scrollEnd(false);
+        } else if (store.length >= VIRTUAL_THRESHOLD && (prevH == null || Math.abs(prevH - h) > 10)) {
+          scheduleRender();
         }
       };
 
@@ -1246,17 +1268,20 @@
       }
       end = Math.min(n, end + OVERSCAN);
 
-      const nearEnd = scrollTop + viewH >= Math.max(0, root.scrollHeight - 64);
-      const pinned = pinRangeToTail(
-        n,
-        start,
-        end,
-        stickToBottom || nearEnd,
-        viewH + OVERSCAN * 40,
-        (i) => estimateHeight(items[i]),
-      );
-      start = pinned.start;
-      end = pinned.end;
+      // Tail pinning is ONLY for following live chat tail (stickToBottom).
+      // Never force tail pinning when the user has scrolled away to read history.
+      if (stickToBottom) {
+        const pinned = pinRangeToTail(
+          n,
+          start,
+          end,
+          true,
+          viewH + OVERSCAN * 40,
+          (i) => estimateHeight(items[i]),
+        );
+        start = pinned.start;
+        end = pinned.end;
+      }
 
       // Always include streaming tail
       const streamIds = new Set(
@@ -1275,6 +1300,13 @@
       for (let i = 0; i < start; i++) top += estimateHeight(items[i]);
       let bottom = 0;
       for (let i = end; i < n; i++) bottom += estimateHeight(items[i]);
+
+      // CRITICAL INVARIANT: Top spacer must NEVER push window content below the viewport.
+      // spacerTop <= scrollTop guarantees the empty spacer cannot be seen as a black overlay.
+      if (!stickToBottom && start > 0) {
+        top = Math.min(top, Math.max(0, scrollTop));
+      }
+
       return { start, end, top, bottom, full: false };
     }
 
@@ -1340,8 +1372,10 @@
       for (const el of ordered) {
         const id = Number(el.dataset.itemId);
         const prev = heightCache.get(id);
+        const item = store.items.find((x) => x.id === id);
+        const baseline = prev != null ? prev : (item ? estimateHeight(item) : 0);
         const h = measure(el, id);
-        if (prev != null && h > 0 && Math.abs(prev - h) > 4) heightsChanged = true;
+        if (baseline > 0 && h > 0 && Math.abs(baseline - h) > 8) heightsChanged = true;
       }
 
       if (stickToBottom) {
@@ -1351,7 +1385,7 @@
       } else {
         // Full mount: preserve exact scroll position (content may grow below)
         if (root.scrollTop !== prevScrollTop) {
-          ignoreScrollUntil = performance.now() + 40;
+          programmaticScrollTop = prevScrollTop;
           root.scrollTop = prevScrollTop;
         }
       }
@@ -1455,7 +1489,6 @@
       (e) => {
         if (e.deltaY < 0) {
           stickToBottom = false;
-          ignoreScrollUntil = 0;
         } else if (e.deltaY > 0 && isAtBottom()) {
           stickToBottom = true;
         }
@@ -1466,14 +1499,18 @@
     root.addEventListener(
       "scroll",
       () => {
-        // Ignore scroll events caused by our own scrollTop assignment
-        if (performance.now() < ignoreScrollUntil) {
-          lastUserScrollTop = root.scrollTop;
-          return;
-        }
         const top = root.scrollTop;
-        // Any meaningful upward scroll = leave live tail immediately!
-        if (top + 2 < lastUserScrollTop) {
+        // Ignore programmatic scroll bounce from restoreScrollAnchor / scrollEnd
+        if (programmaticScrollTop >= 0) {
+          if (Math.abs(top - programmaticScrollTop) < 3) {
+            programmaticScrollTop = -1;
+            lastUserScrollTop = top;
+            return;
+          }
+          programmaticScrollTop = -1;
+        }
+        // Any upward scroll immediately unsticks from bottom
+        if (top < lastUserScrollTop) {
           stickToBottom = false;
         } else if (top > lastUserScrollTop && isAtBottom()) {
           stickToBottom = true;

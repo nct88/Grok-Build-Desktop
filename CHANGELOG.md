@@ -4,6 +4,16 @@ Public, versioned changes for Grok Build Desktop.
 
 ## Unreleased
 
+## 0.5.59 — 2026-09-18
+
+- Timeline virtualization black overlay gap fix: completely eliminated the issue where scrolling up in long chat sessions displayed an empty black spacer gap covering message content.
+- Accurate Thought height estimation: collapsed reasoning thoughts now estimate at their true DOM height (~32px) rather than expanded size (~888px), preventing spacerTop inflation by thousands of pixels.
+- SpacerTop invariant enforcement: enforced `spacerTop <= scrollTop` during history browsing, mathematically guaranteeing that the empty top spacer div can never enter the visible viewport.
+- Real DOM scroll anchoring: anchored viewport position to actual DOM element boundaries, eliminating scroll jumps when off-thread markdown finishes rendering.
+- Immediate upward scroll unsticking: removed artificial `nearEnd` tail pinning and detects upward scrolling immediately across both mouse wheel and scrollbar thumb drag.
+
+Release details are maintained in `docs/releases/0.5.59.md`.
+
 ## 0.5.58 — 2026-09-18
 
 - Recursive Markdown inline token unpack: completely resolved an issue where inline code nested inside file links (e.g. `[`docs/06-...md`](docs/...)`) was rendered as raw placeholder digits (e.g. `0`).

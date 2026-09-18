@@ -1033,6 +1033,45 @@ try {
   fail("media preview path", e);
 }
 
+// Timeline virtualization & scroll up invariant
+try {
+  const tlSrc = fs.readFileSync(
+    path.join(root, "apps/desktop/renderer/lib/timelineView.js"),
+    "utf8",
+  );
+  const prevGrokTimelineView = globalThis.GrokTimelineView;
+  // eslint-disable-next-line no-new-func
+  new Function(tlSrc)();
+  const TL = globalThis.GrokTimelineView;
+  if (!TL?.create || !TL?.pinRangeToTail) throw new Error("timelineView exports missing");
+  if (TL.VIRTUAL_THRESHOLD !== 64) throw new Error(`VIRTUAL_THRESHOLD ${TL.VIRTUAL_THRESHOLD}`);
+
+  const heights = Array.from({ length: 100 }, () => 150);
+  const unpinned = TL.pinRangeToTail(100, 15, 30, false, 800, (i) => heights[i]);
+  if (unpinned.start !== 15 || unpinned.end !== 30) {
+    throw new Error(`unpinned expected {15, 30} got ${JSON.stringify(unpinned)}`);
+  }
+  const pinned = TL.pinRangeToTail(100, 15, 30, true, 800, (i) => heights[i]);
+  if (pinned.end !== 100 || pinned.start > 95) {
+    throw new Error(`pinned expected end=100 got ${JSON.stringify(pinned)}`);
+  }
+
+  if (!tlSrc.includes("top = Math.min(top, Math.max(0, scrollTop));")) {
+    throw new Error("spacerTop <= scrollTop invariant missing in visibleRange");
+  }
+  if (!tlSrc.includes("if (!isOpen) return 32;")) {
+    throw new Error("collapsed thought height estimation fix missing");
+  }
+  if (!tlSrc.includes("if (top < lastUserScrollTop) {\n          stickToBottom = false;")) {
+    throw new Error("upward scroll immediate unstick missing");
+  }
+
+  if (prevGrokTimelineView !== undefined) globalThis.GrokTimelineView = prevGrokTimelineView;
+  ok("timeline virtualization + zero black gap invariants");
+} catch (e) {
+  fail("timeline virtualization", e);
+}
+
 // ── 2b Security helpers ──
 console.log("\n[2b] Security");
 try {
