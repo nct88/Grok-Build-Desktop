@@ -1065,6 +1065,15 @@ try {
   if (!tlSrc.includes("if (top < lastUserScrollTop) {\n          stickToBottom = false;")) {
     throw new Error("upward scroll immediate unstick missing");
   }
+  if (!tlSrc.includes("const maxScroll = Math.max(0, root.scrollHeight - root.clientHeight);")) {
+    throw new Error("maxScroll target calculation missing in scrollEnd");
+  }
+  if (tlSrc.includes("if (stickToBottom) {\n        scrollEnd(false);")) {
+    throw new Error("render() must not recursively call scrollEnd(false)");
+  }
+  if (!tlSrc.includes("WINDOW_OVERSCAN = 30;")) {
+    throw new Error("WINDOW_OVERSCAN = 30 missing in timelineView");
+  }
 
   if (prevGrokTimelineView !== undefined) globalThis.GrokTimelineView = prevGrokTimelineView;
   ok("timeline virtualization + zero black gap invariants");

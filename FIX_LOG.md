@@ -1,5 +1,26 @@
 # Fix log
 
+## 2026-09-18 — Sửa lỗi rung giật cuộn đáy (60fps loop) và mất nội dung khi cuộn lên (v0.5.60)
+
+- **Target version:** 0.5.60
+- **Yêu cầu gốc / Triệu chứng (Symptom):**
+  1. Cuộn xuống cuối session bị rung giật liên tục ở tần số rất cao (60fps loop), làm màn hình giật lên xuống và các dòng chữ trong phiên trò chuyện bị đè chồng chéo lên nhau.
+  2. Cuộn lên trên vẫn bị mất một đoạn nội dung như cũ (khối đệm spacerTop tràn vào khung nhìn hoặc phần tử bị unmount khỏi DOM).
+- **Nguyên nhân gốc rễ (Root Cause):**
+  1. Vòng lặp đệ quy cuộn đáy 60fps: Trong `scrollEnd(force)`, `programmaticScrollTop` được gán bằng `root.scrollHeight`. Tuy nhiên Chromium luôn giới hạn `scrollTop` tối đa ở `root.scrollHeight - root.clientHeight`. Khi sự kiện `scroll` kích hoạt, độ lệch giữa `top` và `programmaticScrollTop` chính là chiều cao khung nhìn (~600–900px), khiến điều kiện bỏ qua sự kiện cuộn hệ thống `Math.abs(top - programmaticScrollTop) < 3` bị đánh giá là FALSE. Sự kiện `scroll` lập tức gọi `scheduleRender()`. Trong `render()`, nhánh `if (stickToBottom)` lại tiếp tục gọi `scrollEnd(false)`. Điều này tạo ra vòng lặp vô tận `render()` -> `scrollEnd()` -> `scroll` event -> `scheduleRender()` -> `render()` mỗi khung hình (60–120 lần/giây), liên tục xóa và vẽ lại DOM làm văn bản bị giật và chồng lấn.
+  2. Mất nội dung khi cuộn lên: `OVERSCAN` cũ chỉ có 10 phần tử và ngân sách ghim đuôi chỉ ~1000px, khiến khi ở đáy chỉ có ~10–15 tin nhắn cuối cùng được gắn trong DOM. Khi người dùng lướt lên, khoảng đệm `spacerTop` bị ép bằng `scrollTop` để tránh tràn đệm khiến phần đệm rỗng nằm sát mép trên màn hình; đồng thời các phần tử phía trước chưa được đo đạc thực tế khiến ước tính `estimateHeight` bị lệch, unmount nhầm các tin nhắn người dùng đang đọc.
+- **Giải pháp chi tiết (Resolution):**
+  1. Triệt tiêu vòng lặp đệ quy cuộn đáy: Căn chỉnh giá trị cuộn đích chính xác `const maxScroll = Math.max(0, root.scrollHeight - root.clientHeight);` cho cả `programmaticScrollTop` và `root.scrollTop`. Loại bỏ hoàn toàn lệnh gọi `scrollEnd(false)` vô điều kiện bên trong `render()`, chỉ đồng bộ trực tiếp `root.scrollTop = maxScroll` khi độ lệch `> 2px`.
+  2. Lọc sự kiện cuộn tự động vững chắc: Cập nhật bộ lắng nghe `scroll` để nhận diện chính xác các sự kiện cuộn do hệ thống điều khiển trong ngưỡng sai số `Math.abs(top - programmaticScrollTop) <= 4 || Math.abs(top - maxScroll) <= 4`, bảo đảm không bao giờ kích hoạt lại render ngoài ý muốn.
+  3. Mở rộng đệm ảo hóa `WINDOW_OVERSCAN = 30` & ngân sách 3000–4000px: Tăng cường vùng đệm gắn sẵn quanh khung nhìn. Với các phiên hội thoại thông thường (dưới ~80–100 mục), toàn bộ 100% tin nhắn được gắn trực tiếp (full mount) trong DOM với spacer = 0px, bảo đảm cuộn lên mượt mà tuyệt đối, không có mảng đen rỗng hay mất chữ.
+  4. Ổn định neo cuộn `restoreScrollAnchor`: Nâng ngưỡng điều chỉnh `diff > 2px` để tránh các dao động vi mô do làm tròn pixel trên màn hình Windows.
+- **Kiểm chứng (Verification Proof):** Đạt 31/31 unit & E2E tests (`npm test`), chạy thành công `test-timeline-oscillation-fix.mjs`, kiểm tra kiến trúc (`check:arch`), hợp đồng đóng gói (`check:packaging`), thương hiệu (`check:brand`) exit 0. Artifacts:
+  - Setup `Grok-Build-Setup-0.5.60.exe` 92,841,689 bytes SHA-256 `7524D272B5E64EE93C257CA0FA43F01A576DFA61D54B06123B8F635AEE93F00F`
+  - Portable EXE `Grok-Build-0.5.60-win32-x64-portable.exe` 92,418,675 bytes SHA-256 `C4F23F3CFAEB26D70C874AE5E9766F61D53D105D3724DA48AA7C6B9B85FCBACE`
+  - Portable ZIP `Grok-Build-0.5.60-win32-x64.zip` 149,794,174 bytes SHA-256 `ABDE276592F0A29EC518CC5F26786090A65652EF847E58E8710BB7C60543B0A0`
+  - `app.asar` 4,569,881 bytes SHA-256 `7E8DD031F7B4326082CCDBCA560E9A5ED6A5BFEB1DC01CDE60469BFA26D7E6F3`
+- **Publication:** Tag `v0.5.60`, GitHub Release `v0.5.60`, Cloudflare R2 `ai-clone/grok-build/`.
+
 ## 2026-09-18 — Sửa lỗi ảo hóa timeline tạo mảng đen che mất nội dung khi cuộn lên (v0.5.59)
 
 - **Target version:** 0.5.59

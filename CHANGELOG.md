@@ -4,6 +4,16 @@ Public, versioned changes for Grok Build Desktop.
 
 ## Unreleased
 
+## 0.5.60 — 2026-09-18
+
+- Bottom scroll oscillation loop fix: resolved the infinite 60fps re-render and scroll bounce at the bottom of the session timeline that caused screen shaking and overlapping text.
+- Accurate maxScroll targeting: aligned programmatic scrollEnd target to `Math.max(0, root.scrollHeight - root.clientHeight)` and eliminated unconditional recursive `scrollEnd(false)` calls inside `render()`.
+- Generous virtualization overscan (WINDOW_OVERSCAN = 30): expanded mounted element cushion and view budget (3000–4000px) so scrolling up through conversation history is smooth and never exposes an unmounted spacer div.
+- Full mount for standard chat transcripts: sessions with standard message counts mount all items directly in DOM flow with 0px spacers, guaranteeing zero black gaps and zero content loss.
+- Programmatic scroll filtering & stable anchor: improved scroll event handling to ignore system bottom snaps within subpixel tolerance and raised anchor diff threshold to > 2px to prevent micro-oscillations.
+
+Release details are maintained in `docs/releases/0.5.60.md`.
+
 ## 0.5.59 — 2026-09-18
 
 - Timeline virtualization black overlay gap fix: completely eliminated the issue where scrolling up in long chat sessions displayed an empty black spacer gap covering message content.

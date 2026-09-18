@@ -5,6 +5,7 @@
 (() => {
   const VIRTUAL_THRESHOLD = 64;
   const OVERSCAN = 10;
+  const WINDOW_OVERSCAN = 30;
 
   /**
    * When the user is at the live tail, always mount the last messages.
@@ -232,8 +233,9 @@
       }
       requestAnimationFrame(() => {
         if (disposed) return;
-        programmaticScrollTop = root.scrollHeight;
-        root.scrollTop = root.scrollHeight;
+        const maxScroll = Math.max(0, root.scrollHeight - root.clientHeight);
+        programmaticScrollTop = maxScroll;
+        root.scrollTop = maxScroll;
         lastUserScrollTop = root.scrollTop;
       });
     }
@@ -261,7 +263,7 @@
         const rootTop = root.getBoundingClientRect().top;
         const currentOffset = el.getBoundingClientRect().top - rootTop;
         const diff = currentOffset - anchor.offset;
-        if (Math.abs(diff) > 0.5) {
+        if (Math.abs(diff) > 2) {
           programmaticScrollTop = Math.max(0, root.scrollTop + diff);
           root.scrollTop = programmaticScrollTop;
           lastUserScrollTop = root.scrollTop;
@@ -1258,28 +1260,30 @@
         acc += h;
         start = i;
       }
-      start = Math.max(0, start - OVERSCAN);
+      start = Math.max(0, start - WINDOW_OVERSCAN);
 
       let end = start;
       let used = 0;
-      while (end < n && used < viewH + OVERSCAN * 40) {
+      const viewBudget = Math.max(viewH * 4, 3000);
+      while (end < n && used < viewBudget) {
         used += estimateHeight(items[end]);
         end++;
       }
-      end = Math.min(n, end + OVERSCAN);
+      end = Math.min(n, end + WINDOW_OVERSCAN);
 
       // Tail pinning is ONLY for following live chat tail (stickToBottom).
       // Never force tail pinning when the user has scrolled away to read history.
       if (stickToBottom) {
+        const tailBudget = Math.max(viewH * 5, 4000);
         const pinned = pinRangeToTail(
           n,
           start,
           end,
           true,
-          viewH + OVERSCAN * 40,
+          tailBudget,
           (i) => estimateHeight(items[i]),
         );
-        start = pinned.start;
+        start = pinned.start <= WINDOW_OVERSCAN ? 0 : pinned.start;
         end = pinned.end;
       }
 
@@ -1294,6 +1298,10 @@
             end = Math.max(end, i + 1);
           }
         }
+      }
+
+      if (start === 0 && end >= n) {
+        return { start: 0, end: n, top: 0, bottom: 0, full: true };
       }
 
       let top = 0;
@@ -1379,7 +1387,12 @@
       }
 
       if (stickToBottom) {
-        scrollEnd(false);
+        const maxScroll = Math.max(0, root.scrollHeight - root.clientHeight);
+        if (Math.abs(root.scrollTop - maxScroll) > 2) {
+          programmaticScrollTop = maxScroll;
+          root.scrollTop = maxScroll;
+          lastUserScrollTop = root.scrollTop;
+        }
       } else if (anchor) {
         restoreScrollAnchor(anchor);
       } else {
@@ -1391,7 +1404,7 @@
       }
 
       // One corrective pass when measured heights diverge from spacer math
-      if (heightsChanged && !range.full && !stickToBottom && remeasurePasses < 2) {
+      if (heightsChanged && !range.full && !stickToBottom && remeasurePasses < 1) {
         remeasurePasses += 1;
         requestAnimationFrame(() => {
           if (!disposed) scheduleRender();
@@ -1502,7 +1515,8 @@
         const top = root.scrollTop;
         // Ignore programmatic scroll bounce from restoreScrollAnchor / scrollEnd
         if (programmaticScrollTop >= 0) {
-          if (Math.abs(top - programmaticScrollTop) < 3) {
+          const maxScroll = Math.max(0, root.scrollHeight - root.clientHeight);
+          if (Math.abs(top - programmaticScrollTop) <= 4 || Math.abs(top - maxScroll) <= 4) {
             programmaticScrollTop = -1;
             lastUserScrollTop = top;
             return;
