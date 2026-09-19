@@ -16,6 +16,12 @@
   4. Giới hạn an toàn chuỗi diffs qua IPC: Cắt gọn an toàn chuỗi văn bản trong `onFileWrite` (tối đa 120.000 ký tự) và `renderCliDiff` (tối đa 150.000 ký tự) để ngăn chặn memory spikes khi thao tác các file dung lượng lớn.
 - **Danh sách file tác động:** `apps/desktop/src/main.cjs`, `apps/desktop/renderer/lib/markdown.js`, `apps/desktop/renderer/lib/timelineView.js`, `scripts/test-black-screen-prevention.mjs`, `scripts/e2e-desktop.mjs`, `package.json`, `package-lock.json`, `apps/desktop/package.json`, `product/VERSION`, `CHANGELOG.md`, `docs/releases/0.5.61.md`, `README.md`, `README.en.md`, `FIX_LOG.md`, `fix-bug/FIX_LOG.md`.
 - **Kiểm chứng (Verification Proof):** Đạt 32/32 unit & E2E tests (`npm test`), kiểm tra kiến trúc (`check:arch`), hợp đồng đóng gói (`check:packaging`), thương hiệu (`check:brand`), hợp đồng phát hành (`check:release`), kiểm thử chuyên biệt `test-black-screen-prevention.mjs` exit 0.
+- **Artifacts:**
+  - Setup `Grok-Build-Setup-0.5.61.exe` 92,843,019 bytes SHA-256 `1ACABE00C5FB42B8217236C41105C98CF2D87E9FF547EAFFB3E84BDB0F6D0878`
+  - Portable EXE `Grok-Build-0.5.61-win32-x64-portable.exe` 92,419,994 bytes SHA-256 `0575866F263E848353E0FB276FFDD7F9496812980D60E0DF9511F1F033AF2CFE`
+  - Portable ZIP `Grok-Build-0.5.61-win32-x64.zip` 149,795,063 bytes SHA-256 `9D991CB3438AB0C3F0E5F57494DAD82D9D4D040D9CD9163DE1AC748EA3BECE2C`
+  - `app.asar` 4,573,091 bytes SHA-256 `75E2503A2B804670FBE46C0CDC42662205F76F66205E35B80A0EE67A74566764`
+- **Publication:** Tag `v0.5.61`, GitHub Release `https://github.com/nct88/Grok-Build-Desktop/releases/tag/v0.5.61`, Cloudflare R2 `ai-clone/grok-build/` & `releases/0.5.61/`, AI-Clone catalog feed updated & verified (`https://dl.truong.it/ai-clone/grok-build/Grok-Build-Setup-0.5.61.exe`).
 
 ## 2026-09-18 — Sửa lỗi rung giật cuộn đáy (60fps loop) và mất nội dung khi cuộn lên (v0.5.60)
 
