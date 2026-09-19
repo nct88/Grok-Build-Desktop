@@ -854,7 +854,7 @@
         captureTabRuntime(prev);
       }
       activeSessionId = tab.sessionId;
-      syncConvTitle();
+      syncConvTitle(tab.title);
       // A tab owns its project. Align composer + sidebar before painting its
       // cache so an old UI selection cannot show it under a different cwd.
       void (async () => {
@@ -876,6 +876,7 @@
         restoreTabRuntime(tab);
         updateQueueBar();
         scrollEnd(true);
+        syncConvTitle(tab.title);
         // Tab activation must never resume/replace an ACP session. It only
         // selects an already-bound slot and replays events cached while hidden.
         if (tab.slotId && api.setActiveAgentSlot) {
@@ -935,10 +936,19 @@
 
   function syncConvTitle(explicit) {
     if (!convTitle) return;
-    void explicit;
     const projectName = workspaceRoot ? basen(workspaceRoot) : tt("noProject", "No project");
-    convTitle.textContent = projectName;
-    convTitle.title = workspaceRoot || projectName;
+    const activeTab = sessionTabs?.getActive?.();
+    const rawTitle = (explicit != null ? String(explicit) : (activeTab?.title || "")).trim();
+    const isGeneric =
+      !rawTitle ||
+      /^(?:chat|new\s+chat|new\s+conversation|conversation|resumed|resumed\s+chat|untitled\s+chat)$/i.test(rawTitle);
+    if (!isGeneric && rawTitle !== projectName) {
+      convTitle.textContent = projectName ? `${projectName} · ${rawTitle}` : rawTitle;
+      convTitle.title = `${workspaceRoot ? workspaceRoot + "\n" : ""}${rawTitle}`;
+    } else {
+      convTitle.textContent = projectName;
+      convTitle.title = workspaceRoot || projectName;
+    }
   }
 
   /** Latest recap / last-turn summary for the open chat (Grok CLI 1.0.5). */
@@ -5254,7 +5264,7 @@
         );
       }
       activeSessionId = s.id;
-      syncConvTitle();
+      syncConvTitle(s.title);
       await paintTranscript(s.id);
       applySessionRecap(s);
       sessionTabs?.saveSnapshot?.(eventStore.items);
@@ -5264,7 +5274,7 @@
         cwd: (noProj ? getRecentsWorkspace() || "" : cwd) || null,
         deferLoad: false,
       });
-      syncConvTitle();
+      syncConvTitle(s.title);
       setStatus(
         agentConnected ? "connected" : "disconnected",
         tt("cachedChatReady", "Cached · send to resume"),
@@ -6735,7 +6745,9 @@
           }
         }
         if (event.resumed) {
-          if (activeSessionId) void paintTranscript(activeSessionId).then(() => unlockChatInput());
+          if (activeSessionId && eventStore.length === 0 && !busy) {
+            void paintTranscript(activeSessionId).then(() => unlockChatInput());
+          }
         }
         syncConvTitle();
         void refreshHistory();
@@ -7366,9 +7378,14 @@
     // Title tab from first user line
     if ((displayText || text) && sessionTabs?.getActive?.()) {
       const t = sessionTabs.getActive();
-      const titleSrc = displayText || text;
-      if (!t.title || t.title === "Chat" || t.title === "New chat" || t.title === "New conversation") {
-        sessionTabs.updateActive({ title: titleSrc.slice(0, 28) + (titleSrc.length > 28 ? "…" : "") });
+      const titleSrc = (displayText || text).trim();
+      const isGeneric =
+        !t.title ||
+        /^(?:chat|new\s+chat|new\s+conversation|conversation|resumed|resumed\s+chat|untitled\s+chat)$/i.test(t.title);
+      if (isGeneric && titleSrc) {
+        const newTitle = titleSrc.slice(0, 28) + (titleSrc.length > 28 ? "…" : "");
+        sessionTabs.updateActive({ title: newTitle });
+        syncConvTitle(newTitle);
       }
     }
     resetAssistant();

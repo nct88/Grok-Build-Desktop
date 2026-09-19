@@ -293,7 +293,16 @@ export async function readSessionTranscript(options: {
         if (!text) continue;
         // Unwrap <user_query> if present
         const q = text.match(/<user_query>\s*([\s\S]*?)\s*<\/user_query>/i);
-        if (q?.[1]) text = q[1].trim();
+        if (q?.[1]) {
+          text = q[1].trim();
+        } else if (
+          role === "user" &&
+          (text.includes("<user_info>") ||
+            text.includes("<system-reminder>") ||
+            text.includes("<git_status>"))
+        ) {
+          continue;
+        }
         // Skip huge instruction dumps
         if (text.includes("<system-reminder>") && text.length > 2000) continue;
         if (text.length > 50_000) text = `${text.slice(0, 50_000)}\n…`;

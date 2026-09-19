@@ -4,7 +4,15 @@ Public, versioned changes for Grok Build Desktop.
 
 ## Unreleased
 
-## 0.5.61 — 2026-09-19
+## 0.5.62 — 2026-09-19
+
+- User message persistence on resumed sessions: eliminated race condition where asynchronous `paintTranscript` calls triggered by IPC `session` events wiped newly sent user prompts from `eventStore`.
+- Pending tail protection in `eventStore.loadTurns()`: upgraded store replacement to preserve unpersisted user prompts and live streaming nodes when loading transcript history.
+- Contextual conversation title bar (`#convTitle`): restored title display format `<Project> · <Conversation / Prompt Title>`, dynamically synchronizing from the first user prompt and across session tab switches.
+- System scaffolding filter in `readSessionTranscript`: ignored `<user_info>`, `<system-reminder>`, and `<git_status>` entries that lack genuine `<user_query>` content to avoid internal prompt leakage into the chat timeline.
+- User attachment preservation in `timelineView.js`: protected `.media-strip` and attachment chips from being cleared during item update events.
+
+Release details are maintained in `docs/releases/0.5.62.md`.
 
 - Black screen prevention during conversation processing: eliminated crash conditions and blank window states during heavy AI agent exchanges.
 - Streaming DOM thrashing & OOM defense: deferred heavy syntax highlight tokenization (`highlightFence` span generation) during active delta streaming (`item.streaming = true`), moving full highlight and link hydration to turn finalization (`finalizeItem`), preventing V8 heap exhaustion and frame stutter.

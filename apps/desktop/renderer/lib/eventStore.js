@@ -242,10 +242,25 @@
        * @param {Array<{ role: string, text: string, messageId?: string, status?: string }>} turns
        */
       loadTurns(turns) {
+        const turnList = Array.isArray(turns) ? turns : [];
+        // Preserve any pending live user prompt or active streaming tail that hasn't been written to disk yet
+        const pendingTail = [];
+        for (let i = items.length - 1; i >= 0; i--) {
+          const it = items[i];
+          if (
+            it.streaming ||
+            (it.kind === "user" &&
+              !turnList.some((t) => t.role === "user" && String(t.text || "").trim() === String(it.text || "").trim()))
+          ) {
+            pendingTail.unshift(it);
+          } else {
+            break;
+          }
+        }
         items.length = 0;
         streamAssistantId = null;
         streamThoughtId = null;
-        for (const t of turns || []) {
+        for (const t of turnList) {
           if (t.role === "user") {
             items.push({
               id: seq++,
@@ -279,6 +294,11 @@
               streaming: false,
             });
           }
+        }
+        for (const p of pendingTail) {
+          items.push(p);
+          if (p.streaming && p.kind === "assistant") streamAssistantId = p.id;
+          if (p.streaming && p.kind === "thought") streamThoughtId = p.id;
         }
         emit({ type: "reset" });
         return items.length;

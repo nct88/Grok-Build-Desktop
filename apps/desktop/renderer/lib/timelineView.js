@@ -1238,8 +1238,19 @@
         nodeMap.set(item.id, fresh);
         return;
       }
-      if (item.kind === "user" || item.kind === "step" || item.kind === "error" || item.kind === "foot") {
+      if (item.kind === "user") {
+        if (item.meta?.attachments?.length) {
+          const fresh = createNode(item);
+          el.replaceWith(fresh);
+          nodeMap.set(item.id, fresh);
+          return;
+        }
         el.textContent = item.text || "";
+        return;
+      }
+      if (item.kind === "step" || item.kind === "error" || item.kind === "foot") {
+        el.textContent = item.text || "";
+        return;
       }
     }
 

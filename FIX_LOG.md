@@ -1,5 +1,40 @@
 # Fix log
 
+## 2026-09-19 — Khắc phục lỗi mất tiêu đề và nội dung tin nhắn người dùng gửi (v0.5.62)
+
+- **Target version:** 0.5.62
+- **Yêu cầu gốc / Triệu chứng (Symptom):** Người dùng gửi phản hồi kèm ảnh chụp màn hình thực tế:
+  1. Trong phiên trò chuyện đang tiếp diễn (hoặc mở lại từ sidebar), sau khi người dùng nhập câu lệnh và nhấn gửi (ở lượt trao đổi về `lock-horizontal-rail` và chuột cuộn Top 10), toàn bộ bong bóng tin nhắn của người dùng (`.msg.user`) biến mất hoàn toàn khỏi dòng thời gian (timeline). Câu trả lời của AI xuất hiện đè ngay dưới lượt trả lời trước, không hề có tin nhắn người dùng ở giữa.
+  2. Thanh tiêu đề phía trên (`#convTitle`) chỉ hiển thị tên thư mục dự án trần (`📁 xemph.im`), hoàn toàn không hiển thị tiêu đề tóm tắt của phiên hay tiêu đề câu hỏi người dùng gửi (`xemph.im · <Tiêu đề>`).
+- **Nguyên nhân gốc rễ (Root Cause):**
+  1. Tranh chấp tiến trình (Race Condition) xóa sạch tin nhắn người dùng khi gửi trong phiên Resume:
+     - Khi chọn phiên từ sidebar, phiên nạp ở trạng thái `deferLoad: true`. Khi người dùng gõ tin nhắn mới và nhấn `send()`:
+     - `send()` gọi `await ensureActiveTabAgent()`, kích hoạt `await api.loadSession(sessionId)`.
+     - Backend ACP phát sự kiện IPC `{ type: "session", sessionId, resumed: true }`.
+     - Tại `apps/desktop/renderer/app.js` (dòng 6738 cũ), nhánh `case "session":` kích hoạt `void paintTranscript(activeSessionId)` bất đồng bộ (fire-and-forget, không chờ).
+     - Trong khi đó, `send()` chạy tiếp đến dòng 7357 và thực thi ngay lập tức: `eventStore.append("user", displayText || text)`. Tin nhắn người dùng vừa được đưa vào store.
+     - Vài mili-giây sau, lệnh `paintTranscript` đọc xong file `chat_history.jsonl` từ đĩa (lúc này CLI chưa kịp ghi câu hỏi mới) và gọi `eventStore.loadTurns(turns)`. Trong `eventStore.js`, `loadTurns()` thực hiện `items.length = 0` xóa sạch toàn bộ store bao gồm cả tin nhắn người dùng vừa thêm!
+     - Sau đó các delta của AI (`pushDelta("thought")`, `pushDelta("assistant")`) được append vào sau các tin nhắn cũ từ ổ đĩa khiến câu trả lời của AI gắn liền vào lượt trước, còn câu hỏi của người dùng biến mất hoàn toàn.
+  2. Thanh tiêu đề bị triệt tiêu tham số (`void explicit;`):
+     - Trong `apps/desktop/renderer/app.js` dòng 936 cũ, hàm `syncConvTitle(explicit)` chứa `void explicit;` và luôn gán cứng `convTitle.textContent = projectName;`. Mọi lời gọi từ `selectSession`, `sessionTabs`, `send()`, `agent:session` dù có truyền tiêu đề đều bị triệt tiêu.
+     - Khi `send()` tự tạo tiêu đề từ dòng prompt đầu tiên của người dùng, hàm không gọi lại `syncConvTitle`.
+  3. Parser lịch sử `readSessionTranscript` lọc sót dữ liệu scaffold:
+     - Các dòng hệ thống dạng `<user_info>` và `<system-reminder>` có `type="user"` nhưng không có `<user_query>` bị parse nhầm thành tin nhắn người dùng, gây rò rỉ dữ liệu kỹ thuật vào timeline.
+- **Giải pháp chi tiết (Resolution):**
+  1. Loại bỏ triệt để Race Condition & bảo vệ tin nhắn người dùng:
+     - Trong `apps/desktop/renderer/app.js`: chỉ cho phép `paintTranscript` trong `case "session":` khi `eventStore.length === 0 && !busy`. Tuyệt đối không tự động ghi đè lịch sử từ đĩa khi đang có tin nhắn hoặc trong lúc đang gửi.
+     - Trong `apps/desktop/renderer/lib/eventStore.js`: nâng cấp `loadTurns(turns)` quét phần đuôi của store (`pendingTail`). Nếu có tin nhắn `user` chưa kịp ghi xuống đĩa hoặc có phần tử đang streaming, hàm bảo toàn và nối lại chúng vào cuối store sau khi nạp lịch sử, không bao giờ để mất tin nhắn người dùng.
+  2. Khôi phục hiển thị Tiêu đề Hội thoại (`#convTitle`):
+     - Cập nhật `syncConvTitle(explicit)` để kết hợp thông minh: nếu có tiêu đề hợp lệ và không trùng với tên project, hiển thị định dạng `<Tên dự án> · <Tiêu đề cuộc trò chuyện / Câu hỏi>`.
+     - Gọi `syncConvTitle(newTitle)` ngay trong `send()` khi tạo tiêu đề từ dòng prompt đầu tiên của người dùng.
+     - Truyền `s.title` vào `syncConvTitle(s.title)` trong `selectSession(s)` và `onActivate`.
+  3. Lọc sạch thẻ scaffolding trong `readSessionTranscript`:
+     - Bổ sung điều kiện kiểm tra trong `packages/sessions/src/index.ts`: nếu `role === "user"` mà không có `<user_query>` và chuỗi văn bản chứa `<user_info>`, `<system-reminder>`, hoặc `<git_status>` thì bỏ qua (skip), ngăn chặn rò rỉ vào lịch sử chat.
+  4. Bảo vệ attachments trong `timelineView.js`:
+     - Cập nhật hàm xử lý update node để bảo toàn cấu trúc `.media-strip` và chips khi cập nhật tin nhắn người dùng.
+- **Danh sách file tác động:** `apps/desktop/renderer/app.js`, `apps/desktop/renderer/lib/eventStore.js`, `apps/desktop/renderer/lib/timelineView.js`, `packages/sessions/src/index.ts`, `packages/sessions/dist/*`, `scripts/test-user-prompt-persistence.mjs`, `package.json`, `package-lock.json`, `apps/desktop/package.json`, `product/VERSION`, `CHANGELOG.md`, `docs/releases/0.5.62.md`, `README.md`, `README.en.md`, `FIX_LOG.md`, `fix-bug/FIX_LOG.md`.
+- **Kiểm chứng (Verification Proof):** Đạt 32/32 unit & E2E tests (`npm test`), kiểm tra kiến trúc (`check:arch`), hợp đồng đóng gói (`check:packaging`), thương hiệu (`check:brand`), hợp đồng phát hành (`check:release`), kiểm thử chuyên biệt `test-user-prompt-persistence.mjs` exit 0.
+
 ## 2026-09-19 — Khắc phục lỗi đen toàn màn hình khi đang xử lý trao đổi (v0.5.61)
 
 - **Target version:** 0.5.61
