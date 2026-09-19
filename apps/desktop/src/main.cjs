@@ -49,6 +49,15 @@ const { loadLocalSlashCommands } = require("./slashCatalog.cjs");
 const { getFolderTrust, setFolderTrust } = require("./folderTrust.cjs");
 const { execFile } = require("node:child_process");
 
+// Chromium GPU crash limit and stability switches on Windows
+if (process.platform === "win32") {
+  try {
+    app.commandLine.appendSwitch("disable-gpu-process-crash-limit");
+  } catch {
+    // ignore
+  }
+}
+
 /** @type {import('electron').BrowserWindow | null} */
 let mainWindow = null;
 const terminalHost = new TerminalHost();
@@ -422,11 +431,17 @@ function connectAgentHost(acp, slot, mode) {
     ),
     requestPermission: sup.createPermissionHandler(slot, mode),
     onFileWrite(change) {
+      const MAX_TEXT_LEN = 120_000;
+      const trimText = (t) => {
+        if (typeof t !== "string") return t;
+        if (t.length <= MAX_TEXT_LEN) return t;
+        return t.slice(0, MAX_TEXT_LEN) + "\n/* [truncated for preview] */";
+      };
       send("agent:event", {
         type: "workspace_edit",
         path: change.path,
-        oldText: change.oldText,
-        newText: change.newText,
+        oldText: trimText(change.oldText),
+        newText: trimText(change.newText),
         source: "filesystem",
         slotId: slot.id,
       });
@@ -1539,11 +1554,66 @@ function createWindow() {
     const [w, h] = mainWindow.getSize();
     saveState({ windowWidth: w, windowHeight: h });
   });
+  mainWindow.webContents.on("render-process-gone", (_event, details) => {
+    const reason = details?.reason || "unknown";
+    const exitCode = details?.exitCode;
+    console.error(`[grok-build] Renderer process gone: reason=${reason}, exitCode=${exitCode}`);
+    try {
+      const crashLog = path.join(app.getPath("userData"), "crash.log");
+      const line = `[${new Date().toISOString()}] render-process-gone: reason=${reason}, exitCode=${exitCode}\n`;
+      fs.appendFileSync(crashLog, line, "utf8");
+    } catch {
+      // ignore
+    }
+    if (!mainWindow || mainWindow.isDestroyed()) return;
+    if (reason === "crashed" || reason === "oom" || reason === "killed" || reason === "abnormal-exit") {
+      dialog
+        .showMessageBox(mainWindow, {
+          type: "error",
+          title: "Session Recovery",
+          message: "The application UI encountered an unexpected error and stopped responding.",
+          detail: `Reason: ${reason} (exit code: ${exitCode}).\nClick Reload to restore the session interface.`,
+          buttons: ["Reload Interface", "Ignore"],
+          defaultId: 0,
+          cancelId: 1,
+        })
+        .then(({ response }) => {
+          if (response === 0 && mainWindow && !mainWindow.isDestroyed()) {
+            mainWindow.webContents.reload();
+          }
+        })
+        .catch(() => {
+          if (mainWindow && !mainWindow.isDestroyed()) {
+            mainWindow.webContents.reload();
+          }
+        });
+    }
+  });
+
+  mainWindow.webContents.on("unresponsive", () => {
+    console.warn("[grok-build] WebContents became unresponsive");
+  });
+
   mainWindow.loadFile(path.join(__dirname, "..", "renderer", "index.html"));
   mainWindow.on("closed", () => {
     mainWindow = null;
   });
 }
+
+app.on("child-process-gone", (_event, details) => {
+  const type = details?.type || "unknown";
+  const reason = details?.reason || "unknown";
+  console.warn(`[grok-build] Child process gone: type=${type}, reason=${reason}`);
+  if (type === "GPU") {
+    try {
+      const crashLog = path.join(app.getPath("userData"), "crash.log");
+      const line = `[${new Date().toISOString()}] child-process-gone: type=GPU, reason=${reason}\n`;
+      fs.appendFileSync(crashLog, line, "utf8");
+    } catch {
+      // ignore
+    }
+  }
+});
 
 /** @type {Electron.MenuItemConstructorOptions[]} */
 let appMenuTemplate = [];

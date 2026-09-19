@@ -1,5 +1,22 @@
 # Fix log
 
+## 2026-09-19 — Khắc phục lỗi đen toàn màn hình khi đang xử lý trao đổi (v0.5.61)
+
+- **Target version:** 0.5.61
+- **Yêu cầu gốc / Triệu chứng (Symptom):** Trong khi ứng dụng đang xử lý trao đổi (AI agent đang stream câu trả lời hoặc chạy các công cụ), cửa sổ ứng dụng đột ngột biến thành một màu đen kịt (`#0e0e0e`). Toàn bộ cây giao diện DOM (Thanh tiêu đề, Menu, Sidebar, Tabs, Timeline chat, Hộp nhập liệu) biến mất hoàn toàn, chỉ còn trơ lại 3 nút điều khiển cửa sổ của Windows (`-`, `□`, `✕`) ở góc trên bên phải.
+- **Nguyên nhân gốc rễ (Root Cause):**
+  1. Quá tải bộ nhớ (V8 Heap OOM Crash) do Render DOM dồn dập khi streaming: Mỗi 40ms khi delta đổ về (`streamBatcher`), `timelineView.js` gọi `bindAssistantContent()`. Hàm này liên tục thực thi `el.innerHTML = md.renderMarkdown(text)`, gọi `md.enhanceElement()` kích hoạt `highlightFence()` phân tích cú pháp và tạo hàng ngàn thẻ DOM `<span>` cho từng token và từng dòng mã nguồn, cùng với việc quét RegExp `pathLinks.hydrate()` và ép layout reflow (`measure()`). Tần suất tạo và hủy hàng chục nghìn DOM node liên tục 25 lần/giây khi đoạn văn bản hoặc khối code dài khiến Chromium cạn kiệt bộ nhớ V8 heap (`FatalProcessOutOfMemory`) làm sập tiến trình Renderer (`render-process-gone`).
+  2. Crash tiến trình GPU trên Windows (Chromium Hardware Acceleration Black Screen): Tần suất repaint và DOM reflow quá cao kích hoạt GPU Context Loss hoặc lỗi crash tiến trình GPU trong DirectX/D3D11. Do Chromium có giới hạn crash GPU mặc định, sau khi sập nhiều lần Chromium tắt compositing và bỏ rơi toàn bộ bề mặt vẽ, để lộ lớp nền native màu đen `#0e0e0e`.
+  3. Thiếu hoàn toàn cơ chế bắt sự kiện Crash và tự phục hồi trong Main Process: `main.cjs` không hề lắng nghe `render-process-gone`, `unresponsive`, hay `child-process-gone` (GPU). Khi renderer hoặc GPU sập, ứng dụng không ghi log, không reload, không hiển thị dialog phục hồi mà giữ nguyên màn hình đen vô thời hạn.
+  4. Tràn dữ liệu IPC khi file diffs hoặc tool content lớn: `onFileWrite` và `renderCliDiff` truyền và xử lý chuỗi văn bản không giới hạn dung lượng, khiến kênh IPC và luồng giao diện bị nghẽn khi xử lý file lớn.
+- **Giải pháp chi tiết (Resolution):**
+  1. Triệt tiêu DOM thrashing & hoãn syntax highlighting khi streaming: Cập nhật `enhanceMarkdownElement(element, openLink, isStreaming)` trong `markdown.js` và `bindAssistantContent` trong `timelineView.js`. Trong lúc đang stream (`isStreaming = true`), code block được bọc `code-card` nhẹ mà không chạy `highlightFence` (không tạo hàng ngàn thẻ `<span>`), hoãn Mermaid và link hydration. Khi turn kết thúc (`finalizeItem`), toàn bộ syntax highlighting và link hydration được chạy trọn vẹn một lần duy nhất, loại bỏ hoàn toàn nguy cơ V8 OOM.
+  2. Bổ sung cơ chế tự phục hồi lỗi Renderer Crash: Trong `main.cjs`, đăng ký `mainWindow.webContents.on('render-process-gone')` ghi nhận log chi tiết (`crash.log`), hiển thị dialog khôi phục phiên "Session Recovery" với nút "Reload Interface" giúp người dùng phục hồi ngay lập tức thay vì kẹt ở màn hình đen. Đăng ký `unresponsive` để giám sát trạng thái treo.
+  3. Tăng cường độ ổn định GPU: Bổ sung cờ `disable-gpu-process-crash-limit` trên Windows và đăng ký `app.on('child-process-gone')` để theo dõi và ghi log các sự cố GPU crash.
+  4. Giới hạn an toàn chuỗi diffs qua IPC: Cắt gọn an toàn chuỗi văn bản trong `onFileWrite` (tối đa 120.000 ký tự) và `renderCliDiff` (tối đa 150.000 ký tự) để ngăn chặn memory spikes khi thao tác các file dung lượng lớn.
+- **Danh sách file tác động:** `apps/desktop/src/main.cjs`, `apps/desktop/renderer/lib/markdown.js`, `apps/desktop/renderer/lib/timelineView.js`, `scripts/test-black-screen-prevention.mjs`, `scripts/e2e-desktop.mjs`, `package.json`, `package-lock.json`, `apps/desktop/package.json`, `product/VERSION`, `CHANGELOG.md`, `docs/releases/0.5.61.md`, `README.md`, `README.en.md`, `FIX_LOG.md`, `fix-bug/FIX_LOG.md`.
+- **Kiểm chứng (Verification Proof):** Đạt 32/32 unit & E2E tests (`npm test`), kiểm tra kiến trúc (`check:arch`), hợp đồng đóng gói (`check:packaging`), thương hiệu (`check:brand`), hợp đồng phát hành (`check:release`), kiểm thử chuyên biệt `test-black-screen-prevention.mjs` exit 0.
+
 ## 2026-09-18 — Sửa lỗi rung giật cuộn đáy (60fps loop) và mất nội dung khi cuộn lên (v0.5.60)
 
 - **Target version:** 0.5.60

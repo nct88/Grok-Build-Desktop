@@ -587,12 +587,15 @@
           if (md?.renderMarkdown) {
             el.classList.add("md-structured");
             el.innerHTML = md.renderMarkdown(text);
-            md.enhanceElement?.(el, opts.openExternal);
-            pathLinks?.hydrate?.(el, {
-              onActivate: opts.onPathActivate,
-              onContext: opts.onPathContext,
-            });
-            hydrateImages(el);
+            const isStreaming = Boolean(item.streaming);
+            md.enhanceElement?.(el, opts.openExternal, isStreaming);
+            if (!isStreaming) {
+              pathLinks?.hydrate?.(el, {
+                onActivate: opts.onPathActivate,
+                onContext: opts.onPathContext,
+              });
+              hydrateImages(el);
+            }
           } else {
             el.classList.remove("md-structured");
             el.textContent = text;
@@ -682,8 +685,10 @@
       }
       const pre = document.createElement("pre");
       pre.className = "cli-diff-pre";
-      const a = String(oldText ?? "").split(/\r?\n/);
-      const b = String(newText ?? "").split(/\r?\n/);
+      const safeOld = typeof oldText === "string" && oldText.length > 150_000 ? oldText.slice(0, 150_000) : (oldText ?? "");
+      const safeNew = typeof newText === "string" && newText.length > 150_000 ? newText.slice(0, 150_000) : (newText ?? "");
+      const a = String(safeOld).split(/\r?\n/);
+      const b = String(safeNew).split(/\r?\n/);
       // Prefer off-thread LCS when available later; fast path for UI: show del then add
       // If both empty, skip
       if (!a.length && !b.length) return;

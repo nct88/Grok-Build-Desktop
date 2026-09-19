@@ -4,6 +4,16 @@ Public, versioned changes for Grok Build Desktop.
 
 ## Unreleased
 
+## 0.5.61 — 2026-09-19
+
+- Black screen prevention during conversation processing: eliminated crash conditions and blank window states during heavy AI agent exchanges.
+- Streaming DOM thrashing & OOM defense: deferred heavy syntax highlight tokenization (`highlightFence` span generation) during active delta streaming (`item.streaming = true`), moving full highlight and link hydration to turn finalization (`finalizeItem`), preventing V8 heap exhaustion and frame stutter.
+- Electron renderer crash recovery: registered `render-process-gone` and `unresponsive` handlers on `mainWindow.webContents` to log exit codes/reasons and prompt for clean session reload rather than freezing on a black surface.
+- Windows GPU stability safeguards: configured `disable-gpu-process-crash-limit` command-line switch on Windows and registered `child-process-gone` listener to detect and survive GPU context losses.
+- Safe IPC payload boundaries: capped file diff preview lengths in `onFileWrite` (Main) and `renderCliDiff` (Renderer) to prevent multi-megabyte string splits and memory spikes on large file edits.
+
+Release details are maintained in `docs/releases/0.5.61.md`.
+
 ## 0.5.60 — 2026-09-18
 
 - Bottom scroll oscillation loop fix: resolved the infinite 60fps re-render and scroll bounce at the bottom of the session timeline that caused screen shaking and overlapping text.

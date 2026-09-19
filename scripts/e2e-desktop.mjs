@@ -1081,6 +1081,35 @@ try {
   fail("timeline virtualization", e);
 }
 
+// Black screen recovery & streaming DOM defense
+try {
+  const mainSrc = fs.readFileSync(path.join(root, "apps/desktop/src/main.cjs"), "utf8");
+  const mdSrc = fs.readFileSync(path.join(root, "apps/desktop/renderer/lib/markdown.js"), "utf8");
+  const tlSrc = fs.readFileSync(path.join(root, "apps/desktop/renderer/lib/timelineView.js"), "utf8");
+
+  if (!mainSrc.includes('mainWindow.webContents.on("render-process-gone"')) {
+    throw new Error("main.cjs must handle render-process-gone");
+  }
+  if (!mainSrc.includes('app.on("child-process-gone"')) {
+    throw new Error("main.cjs must handle child-process-gone");
+  }
+  if (!mainSrc.includes("disable-gpu-process-crash-limit")) {
+    throw new Error("main.cjs must configure disable-gpu-process-crash-limit on Windows");
+  }
+  if (!mainSrc.includes("MAX_TEXT_LEN = 120_000")) {
+    throw new Error("main.cjs onFileWrite must cap text to prevent IPC buffer explosion");
+  }
+  if (!mdSrc.includes("enhanceMarkdownElement(element, openLink, isStreaming)")) {
+    throw new Error("markdown.js must support isStreaming parameter");
+  }
+  if (!tlSrc.includes("const isStreaming = Boolean(item.streaming);")) {
+    throw new Error("timelineView.js must pass isStreaming to enhanceElement");
+  }
+  ok("black screen recovery & streaming DOM defense");
+} catch (e) {
+  fail("black screen recovery & streaming DOM defense", e);
+}
+
 // ── 2b Security helpers ──
 console.log("\n[2b] Security");
 try {

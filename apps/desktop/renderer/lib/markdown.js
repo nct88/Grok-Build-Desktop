@@ -457,11 +457,11 @@
     }
   }
 
-  function enhanceMarkdownElement(element, openLink) {
+  function enhanceMarkdownElement(element, openLink, isStreaming) {
     if (!element) return;
     for (const pre of [...element.querySelectorAll("pre.md-code")]) {
       const lang = (pre.getAttribute("data-lang") || "").trim();
-      if (isMermaidFence(lang) && !pre.closest(".md-diagram")) {
+      if (!isStreaming && isMermaidFence(lang) && !pre.closest(".md-diagram")) {
         const source = pre.querySelector("code")?.textContent || pre.textContent || "";
         const wrap = element.ownerDocument.createElement("div");
         wrap.innerHTML = renderMermaid(source);
@@ -470,8 +470,11 @@
         continue;
       }
       if (pre.parentElement?.classList.contains("code-card")) {
-        const code = pre.querySelector("code");
-        if (code && globalThis.GrokSyntax?.highlightFence) globalThis.GrokSyntax.highlightFence(code, lang);
+        // While streaming, defer heavy syntax tokenization to finalizeItem to avoid DOM thrashing & OOM
+        if (!isStreaming) {
+          const code = pre.querySelector("code");
+          if (code && globalThis.GrokSyntax?.highlightFence) globalThis.GrokSyntax.highlightFence(code, lang);
+        }
         continue;
       }
       const card = element.ownerDocument.createElement("div");
@@ -481,10 +484,14 @@
       header.textContent = lang || "code";
       pre.parentNode?.insertBefore(card, pre);
       card.append(header, pre);
-      const code = pre.querySelector("code");
-      if (code && globalThis.GrokSyntax?.highlightFence) globalThis.GrokSyntax.highlightFence(code, lang);
+      if (!isStreaming) {
+        const code = pre.querySelector("code");
+        if (code && globalThis.GrokSyntax?.highlightFence) globalThis.GrokSyntax.highlightFence(code, lang);
+      }
     }
-    bindMarkdownLinks(element, openLink);
+    if (!isStreaming) {
+      bindMarkdownLinks(element, openLink);
+    }
   }
 
   function setMarkdownContent(element, source, openLink) {
