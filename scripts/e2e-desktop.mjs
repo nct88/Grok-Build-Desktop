@@ -491,15 +491,28 @@ try {
 
 // P1 product paths
 try {
-  const { createProductPaths, resolveExeInDir, isExecutableFile } = require(
-    path.join(root, "apps/desktop/src/productPaths.cjs"),
-  );
+  const {
+    createProductPaths,
+    resolveExeInDir,
+    isExecutableFile,
+    resolveIdeInstall,
+    getHostProfilePaths,
+  } = require(path.join(root, "apps/desktop/src/productPaths.cjs"));
   const pp = createProductPaths("C:\\Users\\test");
   if (!pp.desktop.installDir.includes("Grok Build")) throw new Error("desktop path");
   if (!pp.ide.exeNames.includes("Grok Build IDE.exe")) throw new Error("ide exe");
   if (isExecutableFile(tmp)) throw new Error("dir not exe");
   if (resolveExeInDir(tmp, ["nope.exe"])) throw new Error("empty dir");
-  ok("productPaths layout");
+  const hostPaths = getHostProfilePaths();
+  if (!Array.isArray(hostPaths.homes) || !Array.isArray(hostPaths.localAppDatas)) {
+    throw new Error("host profile paths format");
+  }
+  const resolved = resolveIdeInstall({ loadState: () => ({}) });
+  if (typeof resolved.installed !== "boolean") throw new Error("resolveIdeInstall installed boolean");
+  if (resolved.installed && (!resolved.executable || !resolved.version)) {
+    throw new Error("resolved installed IDE missing executable or version");
+  }
+  ok("productPaths layout + IDE discovery");
 } catch (e) {
   fail("productPaths", e);
 }

@@ -4,6 +4,16 @@ Public, versioned changes for Grok Build Desktop.
 
 ## Unreleased
 
+## 0.5.64 — 2026-09-21
+
+- Robust host profile and IDE discovery in `productPaths.cjs`: resolved issue where running within clone profile managers (such as `GrokCloneManager` / `AntigravityCloneManager`) prevented detection of host-installed Grok Build IDE due to sandboxed `os.homedir()` / `LOCALAPPDATA`.
+- Multi-source host profile discovery: added fallback probe searching host user roots (`C:\Users\<user>`), `process.env.USERNAME`, Windows Registry Shell Folders (`HKCU\Software\Microsoft\Windows\CurrentVersion\Explorer\Shell Folders` -> `Local AppData`), and scanning `C:\Users\*`.
+- Installed IDE version detection: automatically reads product version (`1.0.12`) from the IDE `VERSION` file or `package.json`, surfacing version info on the Open IDE button tooltip and settings dialog.
+- Dialog and i18n content cleanup: removed draft/placeholder strings (`placeholder until landing is ready`, `link demo — chờ trang landing`) across main process and renderer localization files (`en` and `vi`).
+- Settings live IDE status: added detection status readout in the Settings modal showing detected IDE product name, version, and executable path.
+
+Release details are maintained in `docs/releases/0.5.64.md`.
+
 ## 0.5.63 — 2026-09-21
 
 - Sidebar project quick new chat button: added inline `+` button on project rows in the left sidebar to start conversations directly in that project workspace.

@@ -5672,6 +5672,24 @@
     if ($("chkTelemetry")) $("chkTelemetry").checked = Boolean(bootstrap.telemetryOptIn);
     showReasoning = Boolean($("chkShowReasoning")?.checked);
     updateSettingsAuthHint(bootstrap.auth || authProfile);
+    if ($("ideDetectedStatus")) {
+      const info = bootstrap.ideInstall;
+      if (info?.installed) {
+        const v = info.version ? `v${info.version}` : "";
+        $("ideDetectedStatus").textContent = tt(
+          "ideStatusDetected",
+          "Detected: {name} {version} ({path})",
+        )
+          .replace("{name}", info.productName || "Grok Build IDE")
+          .replace("{version}", v)
+          .replace("{path}", info.executable || "");
+      } else {
+        $("ideDetectedStatus").textContent = tt(
+          "ideStatusNotFound",
+          "Not found at default location. Will download from official releases.",
+        );
+      }
+    }
   }
 
   function updateImagineVideoStatus(profile) {
@@ -6104,7 +6122,8 @@
     settings.updateUrl = $("inpUpdateUrl")?.value?.trim() || "";
     settings.idePath = $("inpIdePath")?.value?.trim() || "";
     const res = await api.saveSettings(settings);
-    bootstrap = { ...bootstrap, ...settings };
+    bootstrap = { ...bootstrap, ...settings, ideInstall: res.ideInstall || bootstrap.ideInstall };
+    syncIdeButtonUi(bootstrap.ideInstall);
     if (api.telemetrySetEnabled) {
       await api.telemetrySetEnabled(settings.telemetryOptIn);
     }
@@ -6876,6 +6895,7 @@
     if (root) {
       bootstrap = await api.getBootstrap();
       if (bootstrap?.recentsWorkspace) recentsWorkspace = bootstrap.recentsWorkspace;
+      syncIdeButtonUi(bootstrap?.ideInstall);
     }
     return root;
   }
@@ -8420,6 +8440,21 @@
     modal.classList.remove("hidden");
   }
 
+  function syncIdeButtonUi(ideInstall) {
+    const btn = $("btnOpenIde");
+    if (!btn) return;
+    const info = ideInstall || bootstrap?.ideInstall;
+    if (info?.installed) {
+      const v = info.version ? `v${info.version}` : "";
+      btn.title = tt("openIdeTitleInstalled", "Open Grok Build IDE ({version}) with the current project")
+        .replace("{version}", v);
+      btn.dataset.installed = "true";
+    } else {
+      btn.title = tt("openIdeTitle", "Open Grok Build IDE with the current project");
+      btn.dataset.installed = "false";
+    }
+  }
+
   $("btnOpenIde") &&
     ($("btnOpenIde").onclick = async () => {
       try {
@@ -8432,8 +8467,9 @@
           line: line || undefined,
         });
         if (res?.ok) {
+          const verStr = res.version ? ` v${res.version}` : "";
           addStep(
-            `${res.productName || "IDE"} · ${basen(res.path || "")}` +
+            `${res.productName || "IDE"}${verStr} · ${basen(res.path || "")}` +
               (res.workspace ? ` · ${basen(res.workspace)}` : "") +
               (res.file ? ` · ${basen(res.file)}${res.line ? `:${res.line}` : ""}` : ""),
           );
@@ -9255,6 +9291,7 @@
     syncConvTitle();
     updateProjectChip();
     applyAuthProfile(bootstrap.auth || { loggedIn: false });
+    syncIdeButtonUi(bootstrap.ideInstall);
     void refreshAuthProfile();
     ensureInputsInteractive();
     if (bootstrap.permissionMode) {

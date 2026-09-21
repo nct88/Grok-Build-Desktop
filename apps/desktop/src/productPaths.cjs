@@ -59,6 +59,120 @@ function resolveExeInDir(dirOrExe, exeNames) {
   return null;
 }
 
+function getHostProfilePaths() {
+  const homes = [];
+  const localAppDatas = [];
+  const appDatas = [];
+
+  const addPath = (arr, p) => {
+    if (!p) return;
+    const clean = String(p).trim();
+    if (clean && !arr.includes(clean)) arr.push(clean);
+  };
+
+  // 1. Current process environment & node os defaults
+  try {
+    addPath(homes, os.homedir());
+  } catch {
+    // ignore
+  }
+  addPath(homes, process.env.USERPROFILE);
+  addPath(homes, process.env.HOME);
+  addPath(localAppDatas, process.env.LOCALAPPDATA);
+  addPath(appDatas, process.env.APPDATA);
+
+  // 2. Real Windows host profile discovery (when running inside CloneManager / sandbox)
+  if (process.platform === "win32") {
+    const probeList = [os.homedir(), process.env.USERPROFILE, process.env.HOME, process.env.LOCALAPPDATA];
+    for (const h of probeList) {
+      if (!h) continue;
+      const m = String(h).match(/^([A-Za-z]:[\\/]Users[\\/][^\\/]+)/i);
+      if (m && fs.existsSync(m[1])) {
+        const root = m[1];
+        addPath(homes, root);
+        addPath(localAppDatas, path.join(root, "AppData", "Local"));
+        addPath(appDatas, path.join(root, "AppData", "Roaming"));
+      }
+    }
+
+    if (process.env.USERNAME) {
+      const drive = process.env.SystemDrive || "C:";
+      const uPath = path.join(drive, "Users", process.env.USERNAME);
+      if (fs.existsSync(uPath)) {
+        addPath(homes, uPath);
+        addPath(localAppDatas, path.join(uPath, "AppData", "Local"));
+        addPath(appDatas, path.join(uPath, "AppData", "Roaming"));
+      }
+    }
+
+    try {
+      const cp = require("node:child_process");
+      const out = cp.execFileSync(
+        "reg",
+        ["query", "HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Explorer\\Shell Folders", "/v", "Local AppData"],
+        { encoding: "utf8", timeout: 800, stdio: ["ignore", "pipe", "ignore"] }
+      );
+      const regPath = out.match(/Local AppData\s+REG_SZ\s+(.*)/i)?.[1]?.trim();
+      if (regPath && fs.existsSync(regPath)) {
+        addPath(localAppDatas, regPath);
+      }
+    } catch {
+      // ignore
+    }
+
+    try {
+      const drive = process.env.SystemDrive || "C:";
+      const usersDir = path.join(drive, "Users");
+      if (fs.existsSync(usersDir)) {
+        const entries = fs.readdirSync(usersDir, { withFileTypes: true });
+        for (const ent of entries) {
+          if (
+            ent.isDirectory() &&
+            !ent.name.startsWith(".") &&
+            !["Public", "Default", "Default User", "All Users"].includes(ent.name)
+          ) {
+            const uHome = path.join(usersDir, ent.name);
+            const uLocal = path.join(uHome, "AppData", "Local");
+            if (fs.existsSync(uLocal)) {
+              addPath(homes, uHome);
+              addPath(localAppDatas, uLocal);
+            }
+          }
+        }
+      }
+    } catch {
+      // ignore
+    }
+  }
+
+  return {
+    homes,
+    localAppDatas,
+    appDatas,
+  };
+}
+
+function readInstalledVersion(installDir) {
+  if (!installDir) return null;
+  try {
+    const vFile = path.join(installDir, "VERSION");
+    if (fs.existsSync(vFile)) {
+      const v = fs.readFileSync(vFile, "utf8").trim();
+      if (v) return v;
+    }
+    const pkgFile = path.join(installDir, "resources", "app", "package.json");
+    if (fs.existsSync(pkgFile)) {
+      const pkg = JSON.parse(fs.readFileSync(pkgFile, "utf8"));
+      if (pkg && typeof pkg.version === "string" && pkg.version.trim()) {
+        return pkg.version.trim();
+      }
+    }
+  } catch {
+    // ignore
+  }
+  return null;
+}
+
 /**
  * @param {{
  *   loadState: () => object,
@@ -67,37 +181,60 @@ function resolveExeInDir(dirOrExe, exeNames) {
  */
 function resolveIdeInstall(deps) {
   const PRODUCT = deps.productPaths || PRODUCT_PATHS;
-  const state = deps.loadState() || {};
+  const state = (deps.loadState && deps.loadState()) || {};
   const downloadUrl =
     (typeof state.ideDownloadUrl === "string" && state.ideDownloadUrl.trim()) ||
     PRODUCT.ide.downloadUrl;
   const productName = PRODUCT.ide.productName;
   const exeNames = PRODUCT.ide.exeNames;
-  const home = os.homedir();
+  const host = getHostProfilePaths();
 
   const candidates = [
     { src: "settings", path: state.idePath },
     { src: "env", path: process.env.GROK_BUILD_IDE },
     { src: "default", path: PRODUCT.ide.installDir },
-    {
-      src: "default-alt",
-      path: path.join(home, "AppData", "Local", "Programs", "grok-build-ide"),
-    },
-    { src: "program-files", path: "C:\\Program Files\\Grok Build IDE" },
+  ];
+
+  for (const lad of host.localAppDatas) {
+    candidates.push({ src: "localappdata", path: path.join(lad, "Programs", "Grok Build IDE") });
+    candidates.push({ src: "localappdata-alt", path: path.join(lad, "Programs", "grok-build-ide") });
+  }
+
+  for (const h of host.homes) {
+    candidates.push({ src: "home-programs", path: path.join(h, "AppData", "Local", "Programs", "Grok Build IDE") });
+    candidates.push({ src: "home-programs-alt", path: path.join(h, "AppData", "Local", "Programs", "grok-build-ide") });
+  }
+
+  const programFiles = process.env.ProgramFiles || "C:\\Program Files";
+  const programFilesX86 = process.env["ProgramFiles(x86)"] || "C:\\Program Files (x86)";
+  candidates.push(
+    { src: "program-files", path: path.join(programFiles, "Grok Build IDE") },
+    { src: "program-files-x86", path: path.join(programFilesX86, "Grok Build IDE") },
     { src: "dev", path: "H:\\projects\\grok-build-ide" },
     { src: "dev-e", path: "E:\\projects\\grok-build-ide" },
-  ].filter((c) => c.path && String(c.path).trim());
+  );
+
+  const realHostUser = host.homes.find((h) => !/CloneManager|antigravity-clone/i.test(h)) || host.homes[0] || null;
+  const realHostLocal = host.localAppDatas.find((l) => !/CloneManager|antigravity-clone/i.test(l)) || host.localAppDatas[0] || null;
+  const realHostApp = host.appDatas.find((a) => !/CloneManager|antigravity-clone/i.test(a)) || host.appDatas[0] || null;
 
   for (const c of candidates) {
+    if (!c.path || !String(c.path).trim()) continue;
     const exe = resolveExeInDir(String(c.path).trim(), exeNames);
     if (exe) {
+      const installDir = path.dirname(exe);
+      const version = readInstalledVersion(installDir);
       return {
         installed: true,
-        installDir: path.dirname(exe),
+        installDir,
         executable: exe,
+        version,
         source: c.src,
         productName,
         downloadUrl,
+        hostUserProfile: realHostUser,
+        hostLocalAppData: realHostLocal,
+        hostAppData: realHostApp,
       };
     }
   }
@@ -105,9 +242,13 @@ function resolveIdeInstall(deps) {
     installed: false,
     installDir: PRODUCT.ide.installDir,
     executable: null,
+    version: null,
     source: null,
     productName,
     downloadUrl,
+    hostUserProfile: realHostUser,
+    hostLocalAppData: realHostLocal,
+    hostAppData: realHostApp,
   };
 }
 
@@ -177,18 +318,36 @@ async function openIdeApp(opts, deps) {
     }
   }
 
+  const launchEnv = { ...process.env };
+  if (process.platform === "win32") {
+    if (ide.hostUserProfile && /CloneManager|antigravity-clone/i.test(launchEnv.USERPROFILE || "")) {
+      launchEnv.USERPROFILE = ide.hostUserProfile;
+      launchEnv.HOME = ide.hostUserProfile;
+    }
+    if (ide.hostLocalAppData && /CloneManager|antigravity-clone/i.test(launchEnv.LOCALAPPDATA || "")) {
+      launchEnv.LOCALAPPDATA = ide.hostLocalAppData;
+    }
+    if (ide.hostAppData && /CloneManager|antigravity-clone/i.test(launchEnv.APPDATA || "")) {
+      launchEnv.APPDATA = ide.hostAppData;
+    }
+    delete launchEnv.ANTIGRAVITY_AGENTAPI_EXE;
+    delete launchEnv.CHROME_DEVTOOLS_MCP_JS;
+  }
+
   try {
     const child = spawn(ide.executable, args, {
       detached: true,
       stdio: "ignore",
       windowsHide: false,
       shell: false,
+      env: launchEnv,
     });
     child.unref();
     return {
       ok: true,
       path: ide.executable,
       installDir: ide.installDir,
+      version: ide.version || null,
       source: ide.source,
       productName: ide.productName,
       workspace: workspace || null,
@@ -215,4 +374,6 @@ module.exports = {
   resolveExeInDir,
   resolveIdeInstall,
   openIdeApp,
+  getHostProfilePaths,
+  readInstalledVersion,
 };

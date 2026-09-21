@@ -1732,8 +1732,8 @@ function buildAppMenu() {
                 detail:
                   `Expected install:\n${res.expectedDir || PRODUCT_PATHS.ide.installDir}\n\n` +
                   `Executable: Grok Build IDE.exe\n\n` +
-                  `You can install from the download page (placeholder until landing is ready), ` +
-                  `or set Settings → IDE path / GROK_BUILD_IDE to your install.`,
+                  `You can install from the official releases page, ` +
+                  `or set Settings → Grok Build IDE / GROK_BUILD_IDE to your custom path.`,
                 buttons: ["Open download page", "Cancel"],
                 defaultId: 0,
                 cancelId: 1,
@@ -1948,6 +1948,7 @@ app.whenReady().then(() => {
           installed: ide.installed,
           executable: ide.executable,
           installDir: ide.installDir,
+          version: ide.version || null,
           productName: ide.productName,
           downloadUrl: ide.downloadUrl,
           desktopInstallDir: PRODUCT_PATHS.desktop.installDir,
@@ -2073,7 +2074,19 @@ app.whenReady().then(() => {
       updateUrl: s.updateUrl || "",
       idePath: typeof s.idePath === "string" ? s.idePath.trim() : loadState().idePath || "",
     });
-    return { ok: true, shouldUseDarkColors: nativeTheme.shouldUseDarkColors };
+    const ide = resolveIdeInstall();
+    return {
+      ok: true,
+      shouldUseDarkColors: nativeTheme.shouldUseDarkColors,
+      ideInstall: {
+        installed: ide.installed,
+        executable: ide.executable,
+        installDir: ide.installDir,
+        version: ide.version || null,
+        productName: ide.productName,
+        downloadUrl: ide.downloadUrl,
+      },
+    };
   });
 
   ipcMain.handle("app:setTheme", async (_e, theme) => {
