@@ -4,6 +4,15 @@ Public, versioned changes for Grok Build Desktop.
 
 ## Unreleased
 
+## 0.5.63 — 2026-09-21
+
+- Sidebar project quick new chat button: added inline `+` button on project rows in the left sidebar to start conversations directly in that project workspace.
+- Project options 3-dots button: integrated vertical 3-dots (`moreVertical`) icon button on project rows to trigger project context menu directly.
+- Hover-reveal interaction: action buttons smoothly reveal on hover/focus while keeping relative timestamp visible during resting state.
+- Automated regression suite: added `test-sidebar-project-plus-button.mjs` verifying button appearance, context menu trigger, and workspace tab activation.
+
+Release details are maintained in `docs/releases/0.5.63.md`.
+
 ## 0.5.62 — 2026-09-19
 
 - User message persistence on resumed sessions: eliminated race condition where asynchronous `paintTranscript` calls triggered by IPC `session` events wiped newly sent user prompts from `eventStore`.

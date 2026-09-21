@@ -352,6 +352,7 @@
     sidebarCtx.replaceChildren();
     hideSidebarSubmenu();
     sidebarCtxTarget = null;
+    document.querySelectorAll(".project-item.menu-open").forEach((el) => el.classList.remove("menu-open"));
   }
 
   function placeFixedMenu(el, x, y) {
@@ -4714,6 +4715,19 @@
     renderProjects();
   }
 
+  async function createNewChatForProject(projectPath) {
+    try {
+      setSideNav(null);
+      await openProjectTab(projectPath);
+      await newChatTab(true);
+      void refreshHistory();
+      prompt?.focus();
+    } catch (e) {
+      addMsg("error", e.message || String(e));
+      unlockChatInput();
+    }
+  }
+
   async function runSidebarCtxAction(action, originEvent) {
     const target = sidebarCtxTarget;
     if (!target) return;
@@ -4729,8 +4743,7 @@
     if (target.kind === "project") {
       const projectPath = target.projectPath;
       if (action === "new-chat") {
-        await openProjectTab(projectPath);
-        await newChatTab(true);
+        await createNewChatForProject(projectPath);
         return;
       }
       if (action === "open-folder") {
@@ -4986,6 +4999,10 @@
   function bindProjectDrag(block, handle) {
     handle.draggable = true;
     handle.addEventListener("dragstart", (e) => {
+      if (e.target.closest?.(".project-action-btn")) {
+        e.preventDefault();
+        return;
+      }
       e.stopPropagation();
       block.classList.add("dragging");
       e.dataTransfer?.setData(PROJECT_DRAG_TYPE, block.dataset.projectPath || "");
@@ -5045,15 +5062,58 @@
       block.className = "project-block";
       block.dataset.projectPath = p;
       const active = samePath(p, workspaceRoot);
-      const b = document.createElement("button");
-      b.type = "button";
+      const b = document.createElement("div");
       b.className = "project-item" + (active ? " active" : "");
       b.setAttribute("role", "treeitem");
       b.setAttribute("aria-expanded", "true");
+      b.tabIndex = 0;
+      b.title = p;
       b.innerHTML = `<span class="project-ico" data-icon="folder" data-icon-size="14" aria-hidden="true"></span><span class="project-name">${escapeHtml(basen(p))}</span>`;
       appendSidebarAge(b, newestSessionTime(sessionsForProject(p)));
-      b.title = p;
-      b.onclick = () => void openProjectTab(p);
+
+      const actions = document.createElement("div");
+      actions.className = "project-actions";
+
+      const moreBtn = document.createElement("button");
+      moreBtn.type = "button";
+      moreBtn.className = "project-action-btn project-more-btn";
+      moreBtn.title = tt("moreOptions", "More options");
+      moreBtn.setAttribute("aria-label", tt("moreOptions", "More options"));
+      moreBtn.innerHTML = `<span data-icon="moreVertical" data-icon-size="13" aria-hidden="true"></span>`;
+      moreBtn.onclick = (ev) => {
+        ev.stopPropagation();
+        ev.preventDefault();
+        const rect = moreBtn.getBoundingClientRect();
+        b.classList.add("menu-open");
+        showProjectSidebarMenu(p, { x: rect.right, y: rect.bottom + 4 });
+      };
+
+      const addBtn = document.createElement("button");
+      addBtn.type = "button";
+      addBtn.className = "project-action-btn project-add-chat-btn";
+      addBtn.title = tt("newConversation", "New conversation");
+      addBtn.setAttribute("aria-label", tt("newConversation", "New conversation"));
+      addBtn.innerHTML = `<span data-icon="plus" data-icon-size="13" aria-hidden="true"></span>`;
+      addBtn.onclick = (ev) => {
+        ev.stopPropagation();
+        ev.preventDefault();
+        void createNewChatForProject(p);
+      };
+
+      actions.append(moreBtn, addBtn);
+      b.appendChild(actions);
+
+      b.onclick = (ev) => {
+        if (ev.target.closest(".project-action-btn")) return;
+        void openProjectTab(p);
+      };
+      b.onkeydown = (ev) => {
+        if (ev.target.closest(".project-action-btn")) return;
+        if (ev.key === "Enter" || ev.key === " ") {
+          ev.preventDefault();
+          void openProjectTab(p);
+        }
+      };
       bindProjectContextMenu(b, p);
       block.appendChild(b);
       // Chats under every project (Codex always lists them)

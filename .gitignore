@@ -29,6 +29,8 @@ id_ed25519
 *.log
 .DS_Store
 Thumbs.db
+__pycache__/
+*.pyc
 
 # Superseded local/prototype assets retained only on this workstation
 /styles.css

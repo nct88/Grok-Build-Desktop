@@ -664,7 +664,8 @@ body.resizing button { user-select: auto !important; cursor: inherit; }
   display: flex; align-items: center; gap: 8px;
   text-align: left; padding: 6px 8px; border-radius: var(--radius);
   color: var(--text-3); font-size: 12px; font-weight: 500;
-  border: 0; background: transparent; width: 100%; cursor: grab;
+  border: 0; background: transparent; width: 100%; cursor: pointer;
+  user-select: none; box-sizing: border-box;
 }
 .project-item:active { cursor: grabbing; }
 .project-item .project-ico {
@@ -672,6 +673,51 @@ body.resizing button { user-select: auto !important; cursor: inherit; }
 }
 .project-item .project-name {
   flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.project-actions {
+  display: none;
+  align-items: center;
+  gap: 2px;
+  flex: 0 0 auto;
+  margin-left: auto;
+}
+.project-item:hover .project-actions,
+.project-item:focus-within .project-actions,
+.project-item.menu-open .project-actions {
+  display: flex;
+}
+.project-item:hover .sidebar-age,
+.project-item:focus-within .sidebar-age,
+.project-item.menu-open .sidebar-age {
+  display: none;
+}
+.project-action-btn {
+  width: 20px;
+  height: 20px;
+  border-radius: var(--radius-sm, 4px);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-3);
+  background: transparent;
+  border: 0;
+  padding: 0;
+  cursor: pointer;
+  outline: none;
+  transition: background 0.12s ease, color 0.12s ease;
+  flex-shrink: 0;
+}
+.project-action-btn:hover {
+  background: var(--hover-strong);
+  color: var(--text);
+}
+.project-action-btn:active {
+  transform: scale(0.92);
+}
+.project-action-btn .icon {
+  width: 13px;
+  height: 13px;
+  display: block;
 }
 .sidebar-age {
   flex: 0 0 auto;
