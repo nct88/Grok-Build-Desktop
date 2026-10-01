@@ -1,5 +1,14 @@
 # Fix log
 
+## 2026-10-01 — Effort chip stays on the level you pick
+
+- **Target version:** 0.5.66
+- **Symptom:** On Grok Build Desktop, after choosing Grok 4.7 the effort chip stayed on Extra High. Picking High, Medium, or Low did not stick.
+- **Root cause:** Every ACP config update reapplied the saved effort. The new value was written to layout only after `setSessionConfig` returned, so the echo of Extra High overwrote the click and saved Extra High again. With no current value, the chip also fell through to the first row, Extra High, instead of the option marked default (High).
+- **Resolution:** Save the clicked effort before the async config call and restore a saved effort only once per connect. A later config echo keeps the user pick. An empty current value uses the default option, High on Grok 4.7.
+- **Affected files:** `apps/desktop/renderer/lib/effortChoice.js`, `apps/desktop/renderer/app.js`, `apps/desktop/renderer/index.html`, `packages/acp-client/src/sessionUpdates.ts`, `packages/acp-client/src/types.ts`, `scripts/test-effort-choice.mjs`, `product/VERSION`
+- **Verification:** `npm test` — E2E 34 passed, 0 failed, including `effort choice: passed` and version consistency 0.5.66. `npm run check:packaging`, `check:brand`, and `check:release` OK. `npm run check:visual` OK for 0.5.66 (1000×640, 1440×900, dark/light, 125/150%). `publish-release.ps1 -Version 0.5.66` produced `dist\0.5.66\install\Grok-Build-Setup-0.5.66.exe`. Built `Grok Build.exe` FileVersion 0.5.66.
+
 ## 2026-09-19 — Khắc phục lỗi mất tiêu đề và nội dung tin nhắn người dùng gửi (v0.5.62)
 
 - **Target version:** 0.5.62

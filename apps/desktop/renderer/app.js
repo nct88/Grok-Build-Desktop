@@ -4042,8 +4042,27 @@
   }
 
   /** Known product default when CLI not yet connected — live `grok models` overrides. */
-  const PRODUCT_DEFAULT_MODEL = "grok-4.6";
-  const PRODUCT_DEFAULT_EFFORT = "high";
+  const PRODUCT_DEFAULT_MODEL = "grok-4.7";
+  const PRODUCT_DEFAULT_EFFORT = globalThis.GrokEffortChoice?.PRODUCT_DEFAULT_EFFORT || "high";
+
+  function normalizeEffortId(raw) {
+    return globalThis.GrokEffortChoice?.normalizeEffortId(raw) || String(raw ?? "").trim();
+  }
+
+  function resolveEffortValue(input) {
+    return (
+      globalThis.GrokEffortChoice?.resolveEffortValue({
+        productDefault: PRODUCT_DEFAULT_EFFORT,
+        ...input,
+      }) || PRODUCT_DEFAULT_EFFORT
+    );
+  }
+
+  function shouldRestoreSavedEffort(input) {
+    return Boolean(globalThis.GrokEffortChoice?.shouldRestoreSavedEffort(input));
+  }
+  let restoredSavedModel = false;
+  let restoredSavedEffort = false;
   const EFFORT_LEVELS = [
     { value: "low", name: "Low" },
     { value: "medium", name: "Medium" },
@@ -4113,9 +4132,10 @@
     }
     if (want && [...sel.options].some((o) => o.value === want)) sel.value = want;
     else if (real.length >= 1) {
+      const productDefault = sel === selEffort ? PRODUCT_DEFAULT_EFFORT : bootstrap?.defaultModel || PRODUCT_DEFAULT_MODEL;
       const def =
         real.find((c) => c.default) ||
-        real.find((c) => c.value === (bootstrap?.defaultModel || PRODUCT_DEFAULT_MODEL)) ||
+        real.find((c) => c.value === productDefault) ||
         real[0];
       sel.value = String(def.value);
     } else {
@@ -4162,8 +4182,8 @@
         : [{ value: PRODUCT_DEFAULT_MODEL, name: PRODUCT_DEFAULT_MODEL, default: true }],
     );
     const preferred =
-      bootstrap?.model ||
       loadLayout().model ||
+      bootstrap?.model ||
       bootstrap?.defaultModel ||
       PRODUCT_DEFAULT_MODEL;
     fillSelect(selModel, list, preferred, "Model", { forceNoEmpty: true });
@@ -4201,22 +4221,26 @@
     for (const opt of options) {
       const cat = (opt.category || "").toLowerCase();
       const name = (opt.name || "").toLowerCase();
-      if (cat === "model" || name.includes("model")) modelOpt = opt;
+      if (cat === "model") modelOpt = opt;
+      else if (!modelOpt && cat !== "model_config" && name.includes("model")) modelOpt = opt;
       if (cat === "thought_level" || /reason|effort|thought/.test(name + cat)) effortOpt = opt;
     }
     if (modelOpt?.options?.length) {
-      const preferred =
-        modelOpt.currentValue ||
-        layout.model ||
-        selModel.value ||
-        bootstrap?.defaultModel ||
-        PRODUCT_DEFAULT_MODEL;
       // Merge agent options with bootstrap list (CLI is source of truth for IDs)
       const fromAgent = normalizeModelChoices(modelOpt.options);
       const fromBoot = normalizeModelChoices(bootstrap?.models || []).filter(
         (m) => !fromAgent.some((a) => a.value === m.value),
       );
-      fillSelect(selModel, [...fromAgent, ...fromBoot], preferred, "Model", {
+      const merged = [...fromAgent, ...fromBoot];
+      const preferred =
+        (selModel.value && merged.some((m) => m.value === selModel.value)
+          ? selModel.value
+          : "") ||
+        modelOpt.currentValue ||
+        layout.model ||
+        bootstrap?.defaultModel ||
+        PRODUCT_DEFAULT_MODEL;
+      fillSelect(selModel, merged, preferred, "Model", {
         forceNoEmpty: true,
       });
       selModel.dataset.configId = modelOpt.id;
@@ -4230,14 +4254,17 @@
         default: Boolean(o.default),
       }));
       const extras = effortChoicesForModel(selModel?.value).filter(
-        (e) => !agentEfforts.some((a) => a.value === e.value),
+        (e) => !agentEfforts.some((a) => normalizeEffortId(a.value) === normalizeEffortId(e.value)),
       );
-      const preferred =
-        effortOpt.currentValue ||
-        layout.effort ||
-        selEffort.value ||
-        (agentEfforts.find((o) => o.default)?.value ?? PRODUCT_DEFAULT_EFFORT);
-      fillSelect(selEffort, [...agentEfforts, ...extras], preferred, "Default", {
+      const choices = [...agentEfforts, ...extras];
+      const preferred = resolveEffortValue({
+        choices,
+        currentValue: effortOpt.currentValue,
+        savedEffort: layout.effort,
+        selectedValue: selEffort.value,
+        userOwned: restoredSavedEffort,
+      });
+      fillSelect(selEffort, choices, preferred, "Default", {
         forceNoEmpty: true,
       });
       selEffort.dataset.configId = effortOpt.id;
@@ -4246,21 +4273,39 @@
       seedEffortOptions(effortOpt?.currentValue || layout.effort);
     }
     applyingConfig = false;
-    // Keep local preference when agent offers a different default (multi-model only)
+    // Apply saved chip preference once per connect when the agent default differs.
+    // Do not re-apply on later config_option_update — that snaps grok-4.7 back to
+    // a stale grok-4.6 after the user picks the live CLI model.
+    if (layout.model === selModel.value) restoredSavedModel = true;
     if (
+      !restoredSavedModel &&
       layout.model &&
       selModel.dataset.configId &&
       layout.model !== selModel.value &&
       realSelectOptions(selModel).length > 1
     ) {
       if ([...selModel.options].some((o) => o.value === layout.model)) {
+        restoredSavedModel = true;
         selModel.value = layout.model;
         void onConfigChange(selModel);
       }
     }
-    if (layout.effort && selEffort.dataset.configId && layout.effort !== selEffort.value) {
-      if ([...selEffort.options].some((o) => o.value === layout.effort)) {
-        selEffort.value = layout.effort;
+    if (normalizeEffortId(layout.effort) && normalizeEffortId(layout.effort) === normalizeEffortId(selEffort.value)) {
+      restoredSavedEffort = true;
+    }
+    if (
+      selEffort.dataset.configId &&
+      shouldRestoreSavedEffort({
+        userOwned: restoredSavedEffort,
+        savedEffort: layout.effort,
+        selectedValue: selEffort.value,
+        choices: [...selEffort.options].map((o) => ({ value: o.value })),
+      })
+    ) {
+      restoredSavedEffort = true;
+      const saved = [...selEffort.options].find((o) => normalizeEffortId(o.value) === normalizeEffortId(layout.effort));
+      if (saved) {
+        selEffort.value = saved.value;
         void onConfigChange(selEffort);
       }
     }
@@ -4346,13 +4391,19 @@
   function setModelValue(v) {
     if (!selModel) return;
     selModel.value = v;
+    saveLayout({ model: v });
+    restoredSavedModel = true;
     void onConfigChange(selModel);
     syncModelChip();
   }
 
   function setEffortValue(v) {
     if (!selEffort) return;
-    selEffort.value = v;
+    const id = normalizeEffortId(v) || v;
+    const match = [...selEffort.options].find((o) => normalizeEffortId(o.value) === id);
+    selEffort.value = match?.value || id;
+    saveLayout({ effort: id });
+    restoredSavedEffort = true;
     void onConfigChange(selEffort);
     syncModelChip();
   }
@@ -4418,7 +4469,10 @@
     if (!usageChip || !usageText) return;
     const bar = $("statusUsageBar");
     if (event?.type === "usage" && event.size) {
+      lastAcpContext = { used: Number(event.used) || 0, size: Number(event.size) || 0 };
       const pct = Math.min(100, Math.round((event.used / event.size) * 100));
+      const composerLabel = $("usageComposerLabel");
+      if (composerLabel) composerLabel.textContent = `${pct}%`;
       usageText.textContent = `${pct}% · ${event.used}/${event.size}`;
       // CLI footer style: ↓169k
       const k = event.used >= 1000 ? `↓${Math.round(event.used / 1000)}k` : `↓${event.used}`;
@@ -5778,6 +5832,7 @@
 
   let lastUsageManageUrl = "https://grok.com?_s=usage";
   let lastSessionInfo = null;
+  let lastAcpContext = null;
 
   function sessionInfoFieldRows(data) {
     if (!data) return [];
@@ -5827,7 +5882,15 @@
         : tt("noActiveSession", "Connect to start a session.");
     }
 
-    const context = data?.context || {};
+    const context = { ...(data?.context || {}) };
+    if (lastAcpContext?.size) {
+      context.used = lastAcpContext.used;
+      context.size = lastAcpContext.size;
+      context.percent = Math.min(
+        100,
+        Math.max(0, Math.round((lastAcpContext.used / lastAcpContext.size) * 1000) / 10),
+      );
+    }
     const pct = Number.isFinite(Number(context.percent)) ? Number(context.percent) : null;
     const pctText = pct == null ? "—" : `${pct}%`;
     if ($("sessionContextPercent")) $("sessionContextPercent").textContent = pctText;
@@ -6834,6 +6897,7 @@
         break;
       case "clear_conversation":
         if (event.reason === "resume") break;
+        lastAcpContext = null;
         resetTimeline();
         editCount = 0;
         reviews = [];
@@ -6939,6 +7003,8 @@
         setWorkspace(ws);
       }
       setStatus("starting", tt("connecting", "Connecting…"));
+      restoredSavedModel = false;
+      restoredSavedEffort = false;
       const launch = { ...connectOpts(), ...(extraOpts || {}) };
       const extraHint = extraRootsHint();
       if (extraHint) {

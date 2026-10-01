@@ -323,6 +323,55 @@ try {
 }
 
 try {
+  const mainSrc = fs.readFileSync(path.join(root, "apps/desktop/src/main.cjs"), "utf8");
+  const start = mainSrc.indexOf("function parseGrokModelsOutput");
+  const end = mainSrc.indexOf("function parseGrokVersionOutput");
+  if (start < 0 || end < 0 || end <= start) throw new Error("parseGrokModelsOutput missing");
+  const parseGrokModelsOutput = new Function(
+    `const FALLBACK_MODELS = { defaultModel: "grok-4.7", models: [] }; ${mainSrc.slice(start, end)}; return parseGrokModelsOutput;`,
+  )();
+  const parsed = parseGrokModelsOutput(
+    "You are logged in with grok.com.\n\nDefault model: grok-4.7\n\nAvailable models:\n  * grok-4.7 (default)\n  - grok-4.7-build-fast\n  - grok-4.6\n  - grok-4.5\n",
+  );
+  const ids = parsed.models.map((m) => m.value);
+  if (parsed.defaultModel !== "grok-4.7") throw new Error("default");
+  if (!ids.includes("grok-4.7") || !ids.includes("grok-4.7-build-fast") || !ids.includes("grok-4.6")) {
+    throw new Error(JSON.stringify(ids));
+  }
+  if (!mainSrc.includes('defaultModel: "grok-4.7"')) throw new Error("fallback default");
+  ok("parseGrokModelsOutput grok-4.7 catalog");
+} catch (e) {
+  fail("parseGrokModelsOutput", e);
+}
+
+try {
+  const {
+    occupancyFromUpdateRow,
+    mergeOccupancy,
+    contextWindowMetrics,
+  } = require(path.join(root, "apps/desktop/src/sessionContext.cjs"));
+  const billed = occupancyFromUpdateRow({
+    params: { update: { usage: { totalTokens: 6410461 } } },
+  });
+  if (billed) throw new Error("billed tokens must not be occupancy");
+  const live = occupancyFromUpdateRow({
+    params: { update: { sessionUpdate: "usage_update", used: 224327, size: 256000 } },
+  });
+  const meta = occupancyFromUpdateRow({ _meta: { totalTokens: 180000 } });
+  const merged = mergeOccupancy(live, meta);
+  if (merged.used !== 180000 || merged.size !== 256000) throw new Error(JSON.stringify(merged));
+  const metrics = contextWindowMetrics(merged, 256000);
+  if (metrics.percent !== 70.3) throw new Error(JSON.stringify(metrics));
+  const overflow = contextWindowMetrics(null, 256000);
+  if (overflow.used != null || overflow.percent != null) throw new Error("no fake 100%");
+  const fakeFill = contextWindowMetrics({ used: 6410461 }, 256000);
+  if (fakeFill.percent !== 100) throw new Error("clamp");
+  ok("sessionContext occupancy vs billed tokens");
+} catch (e) {
+  fail("sessionContext", e);
+}
+
+try {
   const acp = await import(pathToFileURL(path.join(root, "packages/acp-client/dist/index.js")).href);
   const meta = acp.sessionRequestMeta({ reasoningEffort: "xhigh" });
   if (meta.reasoningEffort !== "xhigh" || meta.reasoning_effort !== "xhigh") {

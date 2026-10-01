@@ -69,6 +69,7 @@ export interface SessionConfigChoice {
   value: string;
   name: string;
   description?: string;
+  default?: boolean;
 }
 
 export interface SessionConfigControl {

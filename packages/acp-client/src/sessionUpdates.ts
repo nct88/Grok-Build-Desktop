@@ -71,11 +71,15 @@ export function normalizeConfigOptions(
       );
       return {
         ...base,
-        options: choices.map((choice) => ({
-          value: choice.value,
-          name: choice.name,
-          ...(choice.description ? { description: choice.description } : {}),
-        })),
+        options: choices.map((choice) => {
+          const marked = choice as { default?: boolean };
+          return {
+            value: choice.value,
+            name: choice.name,
+            ...(choice.description ? { description: choice.description } : {}),
+            ...(marked.default ? { default: true } : {}),
+          };
+        }),
       };
     }),
   };

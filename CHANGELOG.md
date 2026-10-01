@@ -4,6 +4,20 @@ Public, versioned changes for Grok Build Desktop.
 
 ## Unreleased
 
+## 0.5.66 — 2026-10-01
+
+- Effort chip on Grok 4.7 keeps the level you pick. A saved Extra High value is restored once per connect, and a later ACP config echo no longer snaps the chip back to Extra High.
+- When the agent does not send a current effort, the chip uses the option marked default (High on Grok 4.7) instead of the first row.
+
+Release details are maintained in `docs/releases/0.5.66.md`.
+
+## 0.5.65 — 2026-09-30
+
+- Let the model chip keep Grok 4.7 after CLI 1.0.40+: parse/fallback catalog includes `grok-4.7` and `grok-4.7-build-fast`, and a saved `grok-4.6` preference is applied only once per connect instead of snapping the chip back on every ACP config update.
+- Show the context-window chip from current occupancy (ACP `usage_update` / `_meta.totalTokens`) instead of cumulative billed tokens, so a long session no longer sticks at 100%.
+
+Release details are maintained in `docs/releases/0.5.65.md`.
+
 ## 0.5.64 — 2026-09-21
 
 - Robust host profile and IDE discovery in `productPaths.cjs`: resolved issue where running within clone profile managers (such as `GrokCloneManager` / `AntigravityCloneManager`) prevented detection of host-installed Grok Build IDE due to sandboxed `os.homedir()` / `LOCALAPPDATA`.

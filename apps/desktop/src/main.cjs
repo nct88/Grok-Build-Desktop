@@ -39,6 +39,11 @@ const {
 } = require("./security.cjs");
 const { normalizePermissionMode } = require("./launchArgs.cjs");
 const {
+  occupancyFromUpdateRow,
+  mergeOccupancy,
+  contextWindowMetrics,
+} = require("./sessionContext.cjs");
+const {
   PRODUCT_PATHS,
   resolveIdeInstall: resolveIdeInstallMod,
   openIdeApp: openIdeAppMod,
@@ -510,8 +515,10 @@ function grokHomeDir() {
 
 /** Fallback when `grok models` unavailable — IDs only; live CLI is source of truth. */
 const FALLBACK_MODELS = {
-  defaultModel: "grok-4.6",
+  defaultModel: "grok-4.7",
   models: [
+    { value: "grok-4.7", name: "grok-4.7" },
+    { value: "grok-4.7-build-fast", name: "grok-4.7-build-fast" },
     { value: "grok-4.6", name: "grok-4.6" },
     { value: "grok-4.5", name: "grok-4.5" },
   ],
@@ -519,10 +526,12 @@ const FALLBACK_MODELS = {
 
 /**
  * Parse `grok models` stdout → { defaultModel, models: [{value,name,default}] }.
- * Example:
- *   Default model: grok-4.6
+ * Example (CLI 1.0.40+):
+ *   Default model: grok-4.7
  *   Available models:
- *     * grok-4.6 (default)
+ *     * grok-4.7 (default)
+ *     - grok-4.7-build-fast
+ *     - grok-4.6
  *     - grok-4.5
  */
 function parseGrokModelsOutput(stdout) {
@@ -941,6 +950,7 @@ function readSessionUsageFromDisk(workspaceRoot, sessionId) {
     const updatesPath = path.join(dir, "updates.jsonl");
     if (!fs.existsSync(updatesPath)) continue;
     let last = null;
+    let occupancy = null;
     try {
       // Read tail only — usage is cumulative and the latest object is enough.
       const st = fs.statSync(updatesPath);
@@ -961,13 +971,21 @@ function readSessionUsageFromDisk(workspaceRoot, sessionId) {
         raw = fs.readFileSync(updatesPath, "utf8");
       }
       for (const line of raw.split("\n")) {
-        if (!line || (!line.includes("inputTokens") && !line.includes("totalTokens"))) continue;
+        if (
+          !line ||
+          (!line.includes("inputTokens") &&
+            !line.includes("totalTokens") &&
+            !line.includes("usage_update"))
+        ) {
+          continue;
+        }
         let o;
         try {
           o = JSON.parse(line);
         } catch {
           continue;
         }
+        occupancy = mergeOccupancy(occupancy, occupancyFromUpdateRow(o));
         const u = o?.params?.update?.usage;
         if (u && typeof u === "object" && (u.totalTokens != null || u.inputTokens != null)) {
           last = u;
@@ -976,26 +994,27 @@ function readSessionUsageFromDisk(workspaceRoot, sessionId) {
     } catch {
       continue;
     }
-    if (!last) continue;
+    if (!last && !occupancy) continue;
 
-    const costUsdTicks = Number(last.costUsdTicks) || 0;
-    const apiDurationMs = Number(last.apiDurationMs) || 0;
+    const costUsdTicks = Number(last?.costUsdTicks) || 0;
+    const apiDurationMs = Number(last?.apiDurationMs) || 0;
     return {
       source: "session",
       sessionId: path.basename(dir),
       sessionDir: dir,
-      inputTokens: Number(last.inputTokens) || 0,
-      outputTokens: Number(last.outputTokens) || 0,
-      totalTokens: Number(last.totalTokens) || 0,
-      cachedReadTokens: Number(last.cachedReadTokens) || 0,
-      cacheCreationTokens: Number(last.cacheCreationTokens) || 0,
-      reasoningTokens: Number(last.reasoningTokens) || 0,
-      modelCalls: Number(last.modelCalls) || 0,
+      inputTokens: Number(last?.inputTokens) || 0,
+      outputTokens: Number(last?.outputTokens) || 0,
+      totalTokens: Number(last?.totalTokens) || 0,
+      cachedReadTokens: Number(last?.cachedReadTokens) || 0,
+      cacheCreationTokens: Number(last?.cacheCreationTokens) || 0,
+      reasoningTokens: Number(last?.reasoningTokens) || 0,
+      modelCalls: Number(last?.modelCalls) || 0,
       apiDurationMs,
       costUsdTicks,
       costUsd: costUsdTicks / USD_TICKS,
-      numTurns: last.numTurns != null ? Number(last.numTurns) : null,
-      modelUsage: last.modelUsage || null,
+      numTurns: last?.numTurns != null ? Number(last.numTurns) : null,
+      modelUsage: last?.modelUsage || null,
+      occupancy,
     };
   }
   return null;
@@ -1054,12 +1073,13 @@ function readPackageSessionInfo() {
       : auth.loggedIn
         ? "OAuth"
         : "Not signed in";
-  const contextSize = Number(modelInfo?.context_window) || null;
-  const contextUsed = usage?.totalTokens != null ? Number(usage.totalTokens) : null;
-  const contextPercent =
-    contextSize && contextUsed != null
-      ? Math.min(100, Math.max(0, Math.round((contextUsed / contextSize) * 1000) / 10))
-      : null;
+  const contextMetrics = contextWindowMetrics(
+    usage?.occupancy || null,
+    modelInfo?.context_window,
+  );
+  const contextSize = contextMetrics.size;
+  const contextUsed = contextMetrics.used;
+  const contextPercent = contextMetrics.percent;
   const title =
     summary?.generated_title ||
     summary?.session_title ||
