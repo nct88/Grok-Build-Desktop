@@ -18,6 +18,7 @@
                     "desktop":  "npm run electron:install \u0026\u0026 npm run icons:stamp-dev \u0026\u0026 npm run build \u0026\u0026 npm run start -w @grok-build/desktop",
                     "start":  "npm run desktop",
                     "dist:desktop":  "npm run icons \u0026\u0026 npm run build \u0026\u0026 npm run dist -w @grok-build/desktop",
+                    "postdist:desktop":  "npm run clean:dist",
                     "release":  "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/publish-release.ps1",
                     "release:github":  "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/publish-github-release.ps1",
                     "release:r2":  "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/deploy-r2.ps1",
