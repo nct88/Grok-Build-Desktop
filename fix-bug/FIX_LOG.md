@@ -1,5 +1,23 @@
 # Fix log
 
+## 2026-10-04 — Permission and usage return to the composer bar
+
+- **Target version:** 0.5.66
+- **Symptom:** Permission and View usage sat on the row above the chat box. The attach control was a paperclip, and send was a paper plane in a rounded square.
+- **Root cause:** The previous layout moved those two chips out of the composer toolbar to match a reading of “outside the chat frame.” Codex keeps access beside a plus inside the box, and send is an up arrow on a circle.
+- **Resolution:** Choose project stays above the box. Inside the bar, the left side is plus, permission, then View usage. The right side stays model and effort, microphone, and a circular up-arrow send button.
+- **Affected files:** `apps/desktop/renderer/index.html`, `apps/desktop/renderer/styles.css`, `apps/desktop/renderer/lib/icons.js`
+- **Verification:** `npm run check` exit 0. E2E 34 passed, 0 failed. Desktop layout OK (1000×640, conversation=747px, composer=715px). Codex-like session UI OK. Slash menu, session tabs, and resizable panes OK.
+
+## 2026-10-04 — Composer, session usage, and file rails
+
+- **Target version:** 0.5.66
+- **Symptom:** Model and effort were separate chips inside the chat box, next to session info. The transcript column stopped shrinking around 780px. Session info did not lead with title, session ID, directory, model, and context-window occupancy. The file tree and the preview could not both collapse.
+- **Root cause:** The composer toolbar kept model, effort, permission, and session info in one row, and `--chat-max` capped the column. Session rows omitted the context window and the usage button was overwritten with a percent. Collapsing one file pane forced the other open. The session visual script also exited 0 after a thrown failure, and it emitted assistant deltas before `resetAssistant()`.
+- **Resolution:** One control inside the composer shows model and effort (name, model list, slider). Outside the box, the project row keeps Choose project on the left and permission plus “View usage” on the right. The chat column uses the free width. Session info starts with title, session ID, working directory, model, reasoning effort, and context window (`32,000 / 128,000 (25%)`); the Context tab headline is `32K / 128K`. Both file panes collapse to 36px rails, and the editor column shrinks to an 80px rail without saving that width. Streaming answers stay plain text until the turn ends. A markdown link with a `:line` suffix reveals the file instead of opening a preview. On short windows, session rows tighten so the usage popover stays on screen.
+- **Affected files:** `apps/desktop/renderer/index.html`, `apps/desktop/renderer/app.js`, `apps/desktop/renderer/styles.css`, `apps/desktop/renderer/lib/i18n.js`, `apps/desktop/renderer/lib/timelineView.js`, `scripts/verify-codex-session-ui.mjs`, `scripts/verify-resizable-panes.mjs`
+- **Verification:** `npm run check` exit 0. Architecture, packaging, brand, and release contract OK. E2E 34 passed, 0 failed. `npm run check:visual`: Desktop layout OK (1000×640, conversation=747px, composer=715px); slash menu OK; Codex-like session UI OK (0.5.66, thoughts=3, tools=3); session tabs OK; resizable panes OK including collapse/restore.
+
 ## 2026-10-01 — Effort chip stays on the level you pick
 
 - **Target version:** 0.5.66

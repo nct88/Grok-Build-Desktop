@@ -156,6 +156,26 @@ try {
   await page.locator("#btnTogglePreview").click();
   await page.waitForTimeout(240);
 
+  await page.locator("#btnToggleExplorer").click();
+  await page.locator("#btnTogglePreview").click();
+  await page.waitForTimeout(320);
+  const bothCollapsed = await geometry(page);
+  assert.ok(bothCollapsed.fileClasses.includes("explorer-collapsed"), JSON.stringify(bothCollapsed));
+  assert.ok(bothCollapsed.fileClasses.includes("preview-collapsed"), JSON.stringify(bothCollapsed));
+  assert.ok(Math.abs(bothCollapsed.explorer.width - 36) <= 1, JSON.stringify(bothCollapsed));
+  assert.ok(Math.abs(bothCollapsed.preview.width - 36) <= 1, JSON.stringify(bothCollapsed));
+  assert.ok(bothCollapsed.panel.width <= 90, JSON.stringify(bothCollapsed));
+  assert.equal(await page.locator("#btnToggleExplorer").isVisible(), true);
+  assert.equal(await page.locator("#btnTogglePreview").isVisible(), true);
+  await page.locator("#panelFiles").screenshot({ path: path.join(evidenceDir, "resizable-both-collapsed-dark.png") });
+  await page.locator("#btnToggleExplorer").click();
+  await page.locator("#btnTogglePreview").click();
+  await page.waitForTimeout(320);
+  const bothRestored = await geometry(page);
+  assert.ok(!bothRestored.fileClasses.includes("explorer-collapsed"), JSON.stringify(bothRestored));
+  assert.ok(!bothRestored.fileClasses.includes("preview-collapsed"), JSON.stringify(bothRestored));
+  assert.ok(bothRestored.panel.width >= 320, JSON.stringify(bothRestored));
+
   const sidebarBefore = (await geometry(page)).sidebar.width;
   await page.locator("#split1").focus();
   await page.keyboard.press("ArrowRight");

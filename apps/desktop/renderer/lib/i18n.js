@@ -415,9 +415,11 @@
 
       // Usage
       sessionInfo: "Session info",
+      viewUsage: "View usage",
+      contextOccupancyHint: "Thinking, tool results, file reads, and edits share this window.",
       sessionTitleLabel: "Title",
       sessionModelLabel: "Model",
-      sessionInfoHint: "Live details from Grok CLI and ACP",
+      sessionInfoHint: "Title, session ID, directory, model, and context window",
       session: "Session",
       context: "Context",
       copyAll: "Copy all",
@@ -989,9 +991,11 @@
 
       // Usage
       sessionInfo: "Thông tin phiên",
+      viewUsage: "View usage",
+      contextOccupancyHint: "Suy nghĩ, kết quả công cụ, đọc file và sửa file dùng chung cửa sổ này.",
       sessionTitleLabel: "Tiêu đề",
       sessionModelLabel: "Mô hình",
-      sessionInfoHint: "Dữ liệu trực tiếp từ Grok CLI và ACP",
+      sessionInfoHint: "Tiêu đề, ID phiên, thư mục làm việc, model và cửa sổ ngữ cảnh",
       session: "Phiên",
       context: "Ngữ cảnh",
       copyAll: "Sao chép tất cả",

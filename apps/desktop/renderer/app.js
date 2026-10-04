@@ -787,8 +787,11 @@
     onMediaActivate: (info) => showMediaLightbox(info),
     onMediaContext: (info, pos) => showMediaCtx(info, pos),
     onPathActivate: (info) => {
-      const resolved = resolveSessionPath(info?.path);
-      if (resolved && md?.isMarkdownPath?.(resolved)) {
+      const raw = String(info?.path || "");
+      const resolved = resolveSessionPath(raw);
+      // report.md:12 is a source location. Preview only a real markdown path;
+      // the :line suffix is stripped later for the folder action.
+      if (resolved && md?.isMarkdownPath?.(raw)) {
         setPanelVisible(true);
         void openInEditor(resolved);
         return;
@@ -3369,7 +3372,7 @@
     const btn = $("btnTogglePanel");
     if (!pane) return;
     const on = show !== false;
-    if (on && (!pane.style.width || pane.style.width === "0px")) {
+    if (on && (!pane.style.width || pane.style.width === "0px") && !pane.classList.contains("rails-only")) {
       const L = loadLayout();
       const responsiveDefault = window.innerWidth >= 1700 ? 720 : window.innerWidth >= 1450 ? 500 : window.innerWidth >= 1250 ? 450 : 400;
       pane.style.width = `${Math.max(320, Number(L.editorWidth) || responsiveDefault)}px`;
@@ -3440,16 +3443,38 @@
     split?.setAttribute("aria-disabled", canResize ? "false" : "true");
   }
 
+  function defaultEditorWidth() {
+    return window.innerWidth >= 1700 ? 720 : window.innerWidth >= 1450 ? 500 : window.innerWidth >= 1250 ? 450 : 400;
+  }
+
+  function syncEditorRailWidth() {
+    const pane = $("colEditor");
+    const workbench = $("panelFiles")?.querySelector(".file-workbench");
+    const split = $("split2");
+    if (!pane || !workbench) return;
+    const both = workbench.classList.contains("explorer-collapsed") && workbench.classList.contains("preview-collapsed");
+    const wasRails = pane.classList.contains("rails-only");
+    pane.classList.toggle("rails-only", both);
+    split?.classList.toggle("rails-collapsed", both && !pane.classList.contains("collapsed"));
+    if (both) {
+      pane.style.width = "80px";
+      return;
+    }
+    if (wasRails && !pane.classList.contains("collapsed")) {
+      const saved = Number(loadLayout().editorWidth) || defaultEditorWidth();
+      pane.style.width = `${Math.max(320, saved)}px`;
+    }
+  }
+
   function setFilePaneCollapsed(pane, collapsed, persist = true) {
     const workbench = $("panelFiles")?.querySelector(".file-workbench");
     if (!workbench) return;
     const isExplorer = pane === "explorer";
     const ownClass = isExplorer ? "explorer-collapsed" : "preview-collapsed";
-    const peerClass = isExplorer ? "preview-collapsed" : "explorer-collapsed";
-    if (collapsed && workbench.classList.contains(peerClass)) workbench.classList.remove(peerClass);
     workbench.classList.toggle(ownClass, Boolean(collapsed));
     updateFilePaneControls();
-    if (!collapsed) {
+    syncEditorRailWidth();
+    if (!collapsed && !workbench.classList.contains("explorer-collapsed") && !workbench.classList.contains("preview-collapsed")) {
       requestAnimationFrame(() => setFileExplorerWidth(loadLayout().fileExplorerWidth || defaultFileExplorerWidth(), false));
     }
     if (persist) {
@@ -3961,13 +3986,54 @@
         : "";
     const modelLabel = $("modelLabel");
     if (modelLabel) modelLabel.textContent = modelTxt || "Model";
-    const btnModel = $("btnModel");
-    if (btnModel) btnModel.title = `Model: ${modelTxt || "Model"}`;
     const effortLabel = $("effortLabel");
     if (effortLabel) effortLabel.textContent = effortTxt || "Effort";
-    const btnEffort = $("btnEffort");
-    if (btnEffort) btnEffort.title = `Effort: ${effortTxt || "Effort"}`;
+    const combined = [modelTxt, effortTxt].filter(Boolean).join(" ");
+    const combinedLabel = $("modelEffortLabel");
+    if (combinedLabel) combinedLabel.textContent = combined || "Model";
+    const btnModelEffort = $("btnModelEffort");
+    if (btnModelEffort) {
+      btnModelEffort.title = combined
+        ? `Model: ${modelTxt || "Model"} · Effort: ${effortTxt || "Effort"}`
+        : "Model and effort";
+    }
+    syncEffortSlider();
     rebuildModelMenus();
+  }
+
+  function syncEffortSlider() {
+    const choices = effortChoicesForModel(selModel?.value);
+    const slider = $("effortSlider");
+    const ticks = $("effortTicks");
+    const current = selEffort?.value || "";
+    let index = choices.findIndex((choice) => choice.value === current);
+    if (index < 0) index = 0;
+    if (slider) {
+      slider.min = "0";
+      slider.max = String(Math.max(0, choices.length - 1));
+      slider.value = String(index);
+      slider.disabled = choices.length < 2;
+      slider.setAttribute("aria-valuemin", "0");
+      slider.setAttribute("aria-valuemax", String(Math.max(0, choices.length - 1)));
+      slider.setAttribute("aria-valuenow", String(index));
+      slider.setAttribute("aria-valuetext", choices[index]?.name || current || "Effort");
+    }
+    if (ticks) {
+      ticks.replaceChildren();
+      choices.forEach((choice, choiceIndex) => {
+        const mark = document.createElement("button");
+        mark.type = "button";
+        mark.className = choice.value === current ? "active" : "";
+        mark.textContent = choice.name;
+        mark.setAttribute("aria-pressed", choice.value === current ? "true" : "false");
+        mark.onclick = (event) => {
+          event.stopPropagation();
+          setEffortValue(choice.value);
+        };
+        mark.dataset.index = String(choiceIndex);
+        ticks.appendChild(mark);
+      });
+    }
   }
 
   function syncModeChip() {
@@ -4013,9 +4079,11 @@
           "aria-selected",
           (o.value === selModel.value || (onlyOne && o.value === models[0]?.value)) ? "true" : "false",
         );
-        b.onclick = () => {
+        b.onclick = (event) => {
+          event.stopPropagation();
           setModelValue(o.value);
-          closeAllChipMenus();
+          $("menuModel")?.classList.add("hidden");
+          $("btnPickModel")?.setAttribute("aria-expanded", "false");
         };
         modelHost.appendChild(b);
       }
@@ -4032,9 +4100,9 @@
         b.dataset.value = o.value;
         b.textContent = o.value ? o.textContent || o.value : "Default";
         b.setAttribute("aria-selected", o.value === selEffort.value ? "true" : "false");
-        b.onclick = () => {
+        b.onclick = (event) => {
+          event.stopPropagation();
           setEffortValue(o.value);
-          closeAllChipMenus();
         };
         effortHost.appendChild(b);
       }
@@ -4432,10 +4500,23 @@
 
   function setupComposerChips() {
     wireChipDropdown("btnPermission", "menuPermission");
-    wireChipDropdown("btnModel", "menuModel");
-    wireChipDropdown("btnEffort", "menuEffort");
+    wireChipDropdown("btnModelEffort", "menuModelEffort");
     wireChipDropdown("btnMode", "menuMode");
     wireChipDropdown("btnUsage", "menuUsage");
+    $("btnPickModel")?.addEventListener("click", (event) => {
+      event.stopPropagation();
+      const menu = $("menuModel");
+      const open = menu?.classList.contains("hidden");
+      if (!menu) return;
+      menu.classList.toggle("hidden", !open);
+      $("btnPickModel")?.setAttribute("aria-expanded", open ? "true" : "false");
+    });
+    $("effortSlider")?.addEventListener("input", (event) => {
+      event.stopPropagation();
+      const choices = effortChoicesForModel(selModel?.value);
+      const choice = choices[Number(event.currentTarget.value)];
+      if (choice && choice.value !== selEffort?.value) setEffortValue(choice.value);
+    });
     $("btnUsage")?.addEventListener("click", () => {
       if (!$("menuUsage")?.classList.contains("hidden")) {
         void refreshSessionInfo();
@@ -5834,20 +5915,38 @@
   let lastSessionInfo = null;
   let lastAcpContext = null;
 
+  function formatCompactTokens(n) {
+    const x = Number(n);
+    if (!Number.isFinite(x)) return "—";
+    if (Math.abs(x) < 1000) return formatInt(x);
+    const k = x / 1000;
+    const text = Math.abs(k) >= 100 || Math.abs(k - Math.round(k)) < 0.05
+      ? String(Math.round(k))
+      : String(Math.round(k * 10) / 10);
+    return `${text}K`;
+  }
+
+  function contextWindowText(context) {
+    if (!context || context.used == null || !context.size) return null;
+    const pct = Number.isFinite(Number(context.percent)) ? ` (${context.percent}%)` : "";
+    return `${formatInt(context.used)} / ${formatInt(context.size)}${pct}`;
+  }
+
   function sessionInfoFieldRows(data) {
     if (!data) return [];
     const rows = [
       [tt("sessionTitleLabel", "Title"), data.title],
-      [tt("shellVersion", "Shell version"), data.shellVersion],
-      [tt("authMethod", "Auth method"), data.authMethod],
       [tt("sessionId", "Session ID"), data.sessionId],
       [tt("workingDirectory", "Working directory"), data.workingDirectory],
       [tt("sessionModelLabel", "Model"), data.model],
+      [tt("reasoningEffort", "Reasoning effort"), data.reasoningEffort],
+      [tt("contextWindow", "Context window"), contextWindowText(data.context)],
+      [tt("shellVersion", "Shell version"), data.shellVersion],
+      [tt("authMethod", "Auth method"), data.authMethod],
       [tt("modelHash", "Model Hash"), data.modelHash],
       [tt("apiBackend", "API Backend"), data.apiBackend],
       [tt("sandbox", "Sandbox"), data.sandbox],
       [tt("turns", "Turns"), data.turns],
-      [tt("reasoningEffort", "Reasoning effort"), data.reasoningEffort],
       [tt("permissionMode", "Permission mode"), data.permissionMode],
       [tt("created", "Created"), data.createdAt ? new Date(data.createdAt).toLocaleString() : null],
       [tt("updated", "Updated"), data.updatedAt ? new Date(data.updatedAt).toLocaleString() : null],
@@ -5893,7 +5992,12 @@
     }
     const pct = Number.isFinite(Number(context.percent)) ? Number(context.percent) : null;
     const pctText = pct == null ? "—" : `${pct}%`;
-    if ($("sessionContextPercent")) $("sessionContextPercent").textContent = pctText;
+    if ($("sessionContextPercent")) {
+      $("sessionContextPercent").textContent =
+        context.used != null && context.size
+          ? `${formatCompactTokens(context.used)} / ${formatCompactTokens(context.size)}`
+          : pctText;
+    }
     if ($("sessionContextBar")) {
       $("sessionContextBar").style.width = `${pct == null ? 0 : Math.min(100, Math.max(0, pct))}%`;
     }
@@ -5905,10 +6009,6 @@
         context.used != null && context.size
           ? `${formatInt(context.used)} / ${formatInt(context.size)} tokens (${pctText})`
           : tt("waitingContext", "Waiting for context data.");
-    }
-    if (data?.context?.used != null) {
-      const label = $("usageComposerLabel");
-      if (label) label.textContent = pct == null ? tt("sessionInfo", "Session") : `${pctText}`;
     }
     if (data?.lastRecap || data?.lastTurnSummary) {
       activeSessionMeta = {
@@ -5956,10 +6056,17 @@
 
   async function copyAllSessionInfo() {
     const rows = sessionInfoFieldRows(lastSessionInfo);
+    const labels = new Set(rows.map(([label]) => label));
     const context = lastSessionInfo?.context || {};
-    if (context.used != null) rows.push([tt("contextUsed", "Context used"), formatInt(context.used)]);
-    if (context.size != null) rows.push([tt("contextWindow", "Context window"), formatInt(context.size)]);
-    if (context.percent != null) rows.push([tt("contextPercent", "Context used %"), `${context.percent}%`]);
+    if (context.used != null && !labels.has(tt("contextUsed", "Context used"))) {
+      rows.push([tt("contextUsed", "Context used"), formatInt(context.used)]);
+    }
+    if (context.size != null && !labels.has(tt("contextWindow", "Context window"))) {
+      rows.push([tt("contextWindow", "Context window"), formatInt(context.size)]);
+    }
+    if (context.percent != null && !labels.has(tt("contextPercent", "Context used %"))) {
+      rows.push([tt("contextPercent", "Context used %"), `${context.percent}%`]);
+    }
     const text = rows.map(([label, value]) => `${label}: ${value}`).join("\n");
     await copySessionInfoValue(text, tt("copiedAll", "Copied all session info"));
   }
@@ -8178,7 +8285,7 @@
       {
         el: $("split2"), target: $("colEditor"), key: "editorWidth", min: 320, reverse: true,
         defaultWidth: () => (window.innerWidth >= 1700 ? 720 : window.innerWidth >= 1450 ? 500 : window.innerWidth >= 1250 ? 450 : 400),
-        max: () => Math.max(320, Math.min(Math.round(window.innerWidth * 0.6), ($("workRow")?.clientWidth || window.innerWidth) - 285)),
+        max: () => Math.max(320, Math.min(Math.round(window.innerWidth * 0.72), ($("workRow")?.clientWidth || window.innerWidth) - 200)),
       },
       {
         el: $("splitFiles"), target: $("projectExplorer"), key: "fileExplorerWidth", min: FILE_EXPLORER_MIN,
@@ -8276,11 +8383,12 @@
     if (L.editorWidth) $("colEditor").style.width = `${Math.max(320, L.editorWidth)}px`;
     const workbench = $("panelFiles")?.querySelector(".file-workbench");
     workbench?.classList.toggle("explorer-collapsed", Boolean(L.fileExplorerCollapsed));
-    workbench?.classList.toggle("preview-collapsed", Boolean(L.filePreviewCollapsed) && !L.fileExplorerCollapsed);
+    workbench?.classList.toggle("preview-collapsed", Boolean(L.filePreviewCollapsed));
     setFileExplorerWidth(L.fileExplorerWidth || defaultFileExplorerWidth(), false);
     setFilePreviewWrap(L.filePreviewWrap !== false, false);
     fileMarkdownPreview = L.fileMarkdownPreview !== false;
     updateFilePaneControls();
+    syncEditorRailWidth();
     setSidebarVisible(L.sidebarVisible !== false);
     setPanelVisible(L.panelVisible !== false);
     setTermVisible(Boolean(L.termVisible));

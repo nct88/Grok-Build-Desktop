@@ -4,6 +4,15 @@ Public, versioned changes for Grok Build Desktop.
 
 ## Unreleased
 
+## 0.5.67 — 2026-10-04
+
+- The composer keeps model and effort in one control. Inside the chat bar: a plus for files, permission, and View usage on the left; microphone and a circular up-arrow send button on the right. Choose project stays above the box.
+- The chat column uses the free width of the window instead of stopping near 780px.
+- View usage leads with title, session ID, working directory, model, reasoning effort, and context-window occupancy. The Context tab shows a compact used/size headline.
+- The project tree and the file preview collapse independently. Collapsing both leaves a narrow rail.
+
+Release details are maintained in `docs/releases/0.5.67.md`.
+
 ## 0.5.66 — 2026-10-01
 
 - Effort chip on Grok 4.7 keeps the level you pick. A saved Extra High value is restored once per connect, and a later ACP config echo no longer snaps the chip back to Extra High.

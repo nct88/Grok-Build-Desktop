@@ -128,6 +128,34 @@ try {
     }));
     ipcMain.removeHandler("agent:setActiveSlot");
     ipcMain.handle("agent:setActiveSlot", async () => ({ ok: true, activeId: "primary" }));
+    // The visual profile points GROK_EXECUTABLE at a missing binary. A real
+    // connect/load would wait on that process and the transcript deltas would
+    // either never arrive or arrive before resetAssistant() wipes them.
+    ipcMain.removeHandler("agent:connect");
+    ipcMain.handle("agent:connect", async () => ({
+      ok: true,
+      reused: true,
+      sessionId: "codex-visual-live",
+      slotId: "primary",
+      workspace: "C:\\work\\grok-build",
+    }));
+    ipcMain.removeHandler("agent:loadSession");
+    ipcMain.handle("agent:loadSession", async () => ({
+      ok: true,
+      sessionId: "codex-visual-live",
+      workspace: "C:\\work\\grok-build",
+    }));
+    ipcMain.removeHandler("agent:newSession");
+    ipcMain.handle("agent:newSession", async () => ({
+      ok: true,
+      sessionId: "codex-visual-live",
+    }));
+    ipcMain.removeHandler("agent:spawnSlot");
+    ipcMain.handle("agent:spawnSlot", async () => ({
+      ok: true,
+      slotId: "primary",
+      sessionId: "codex-visual-live",
+    }));
     globalThis.__codexPathActions = [];
     ipcMain.removeHandler("shell:showItemInFolder");
     ipcMain.handle("shell:showItemInFolder", async (_event, target) => {
@@ -188,7 +216,13 @@ try {
   async function submit(text) {
     await page.locator("#prompt").fill(text);
     await page.locator("#btnSend").click();
-    await page.waitForTimeout(60);
+    // The user bubble is appended immediately before resetAssistant(). Later
+    // deltas must wait until that bubble exists or resetAssistant wipes them.
+    await page.waitForFunction((expected) => {
+      return Array.from(document.querySelectorAll(".msg.user")).some((node) =>
+        (node.textContent || "").includes(expected),
+      );
+    }, text, { timeout: 20_000 });
   }
 
   await submit("Khôi phục luồng suy luận của session và giữ giao diện gọn như Codex.");
@@ -714,6 +748,9 @@ try {
   if (failures.length) throw new Error(failures.join("; "));
   console.log(`Codex-like session UI OK (${version}): live thoughts=${wide.thoughtCount}, tools=${wide.toolCount}, persisted thoughts=${persisted.thoughtCount}, reading=${wide.timelineWindow.width.toFixed(0)}px.`);
   console.log(`Visual evidence written to ${evidenceDir}`);
+} catch (error) {
+  console.error(error);
+  process.exitCode = 1;
 } finally {
   try {
     await Promise.race([
@@ -722,5 +759,5 @@ try {
     ]);
   } catch {}
   await rm(profileDir, { recursive: true, force: true }).catch(() => {});
-  process.exit(0);
+  process.exit(process.exitCode || 0);
 }

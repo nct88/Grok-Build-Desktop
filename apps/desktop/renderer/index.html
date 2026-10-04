@@ -156,71 +156,41 @@
               <div class="composer-toolbar">
                 <div class="composer-left">
                   <button id="btnAttach" class="ghost-icon" type="button" data-i18n-title="attach" data-i18n-aria="attach" title="Attach files" aria-label="Attach">
-                    <span data-icon="paperclip" data-icon-size="18"></span>
+                    <span data-icon="plus" data-icon-size="18"></span>
                   </button>
                   <div class="chip-dd" id="ddPermission">
-                    <button type="button" class="chip-btn chip-perm" id="btnPermission" aria-haspopup="listbox" aria-expanded="false">
-                      <span class="chip-ico" id="permIco" data-icon="circleDot" data-icon-size="14" aria-hidden="true"></span>
-                      <span class="chip-label" id="permLabel">Default</span>
-                      <span class="chip-caret" data-icon="caret" data-icon-size="12" aria-hidden="true"></span>
-                    </button>
-                    <div class="chip-menu hidden" id="menuPermission" role="listbox">
-                      <button type="button" role="option" data-value="default" data-icon-name="circleDot">Default</button>
-                      <button type="button" role="option" data-value="acceptEdits" data-icon-name="edit">Auto · accept edits</button>
-                      <button type="button" role="option" data-value="auto" data-icon-name="zap">Auto</button>
-                      <button type="button" role="option" data-value="plan" data-icon-name="plan">Plan</button>
-                      <button type="button" role="option" data-value="dontAsk" data-icon-name="circle">Don't ask</button>
-                      <button type="button" role="option" data-value="bypassPermissions" data-icon-name="shield">Full access</button>
-                    </div>
-                    <select id="selPermission" class="sr-only" tabindex="-1" aria-hidden="true">
-                      <option value="default" selected>Default</option>
-                      <option value="acceptEdits">Auto · accept edits</option>
-                      <option value="auto">Auto</option>
-                      <option value="plan">Plan</option>
-                      <option value="dontAsk">Don't ask</option>
-                      <option value="bypassPermissions">Full access</option>
-                    </select>
+                  <button type="button" class="chip-btn chip-perm" id="btnPermission" aria-haspopup="listbox" aria-expanded="false">
+                    <span class="chip-ico" id="permIco" data-icon="circleDot" data-icon-size="14" aria-hidden="true"></span>
+                    <span class="chip-label" id="permLabel">Default</span>
+                    <span class="chip-caret" data-icon="caret" data-icon-size="12" aria-hidden="true"></span>
+                  </button>
+                  <div class="chip-menu hidden" id="menuPermission" role="listbox">
+                    <button type="button" role="option" data-value="default" data-icon-name="circleDot">Default</button>
+                    <button type="button" role="option" data-value="acceptEdits" data-icon-name="edit">Auto · accept edits</button>
+                    <button type="button" role="option" data-value="auto" data-icon-name="zap">Auto</button>
+                    <button type="button" role="option" data-value="plan" data-icon-name="plan">Plan</button>
+                    <button type="button" role="option" data-value="dontAsk" data-icon-name="circle">Don't ask</button>
+                    <button type="button" role="option" data-value="bypassPermissions" data-icon-name="shield">Full access</button>
                   </div>
-                  <div class="chip-dd" id="ddModel">
-                    <button type="button" class="chip-btn chip-model" id="btnModel" aria-haspopup="listbox" aria-expanded="false">
-                      <span class="chip-ico model-spark" data-icon="spark" data-icon-size="14" aria-hidden="true"></span>
-                      <span class="chip-label" id="modelLabel">Model</span>
-                      <span class="chip-caret" data-icon="caret" data-icon-size="12" aria-hidden="true"></span>
-                    </button>
-                    <div class="chip-menu hidden" id="menuModel" role="listbox">
-                      <div id="menuModelOpts"></div>
-                    </div>
-                    <select id="selModel" class="sr-only" tabindex="-1" aria-hidden="true">
-                      <option value="grok-4.7" selected>grok-4.7</option>
-                    </select>
-                  </div>
-                  <div class="chip-dd" id="ddEffort">
-                    <button type="button" class="chip-btn chip-effort" id="btnEffort" aria-haspopup="listbox" aria-expanded="false">
-                      <span class="chip-ico" data-icon="effort" data-icon-size="14" aria-hidden="true"></span>
-                      <span class="chip-label" id="effortLabel">High</span>
-                      <span class="chip-caret" data-icon="caret" data-icon-size="12" aria-hidden="true"></span>
-                    </button>
-                    <div class="chip-menu hidden" id="menuEffort" role="listbox">
-                      <div id="menuEffortOpts"></div>
-                    </div>
-                    <select id="selEffort" class="sr-only" tabindex="-1" aria-hidden="true">
-                      <option value="low">Low</option>
-                      <option value="medium">Medium</option>
-                      <option value="high" selected>High</option>
-                      <option value="xhigh">xHigh</option>
-                    </select>
-                  </div>
-                  <div class="chip-dd" id="ddUsage">
-                    <button type="button" class="chip-btn chip-usage" id="btnUsage" aria-haspopup="dialog" aria-expanded="false" title="Session info">
-                      <span class="chip-ico" data-icon="gauge" data-icon-size="14" aria-hidden="true"></span>
-                      <span class="chip-label" id="usageComposerLabel" data-i18n="sessionInfo">Session</span>
-                      <span class="chip-caret" data-icon="caret" data-icon-size="12" aria-hidden="true"></span>
-                    </button>
-                    <div class="chip-menu chip-menu-usage hidden" id="menuUsage" role="dialog" aria-label="Session information">
+                  <select id="selPermission" class="sr-only" tabindex="-1" aria-hidden="true">
+                    <option value="default" selected>Default</option>
+                    <option value="acceptEdits">Auto · accept edits</option>
+                    <option value="auto">Auto</option>
+                    <option value="plan">Plan</option>
+                    <option value="dontAsk">Don't ask</option>
+                    <option value="bypassPermissions">Full access</option>
+                  </select>
+                </div>
+                <div class="chip-dd" id="ddUsage">
+                  <button type="button" class="chip-btn chip-usage" id="btnUsage" aria-haspopup="dialog" aria-expanded="false" data-i18n-title="viewUsage" data-i18n-aria="viewUsage" title="View usage">
+                    <span class="chip-ico" data-icon="gauge" data-icon-size="14" aria-hidden="true"></span>
+                    <span class="chip-label" id="usageComposerLabel" data-i18n="viewUsage">View usage</span>
+                  </button>
+                  <div class="chip-menu chip-menu-usage hidden" id="menuUsage" role="dialog" data-i18n-aria="viewUsage" aria-label="View usage">
                       <header class="session-info-head">
                         <div>
-                          <strong data-i18n="sessionInfo">Session info</strong>
-                          <span id="sessionInfoStatus" data-i18n="sessionInfoHint">Live details from Grok CLI and ACP</span>
+                          <strong data-i18n="viewUsage">View usage</strong>
+                          <span id="sessionInfoStatus" data-i18n="sessionInfoHint">Title, session ID, directory, model, and context window</span>
                         </div>
                         <div class="session-info-head-actions">
                           <button type="button" class="session-info-icon js-refresh-session-info" aria-label="Refresh session information" title="Refresh session information"><span data-icon="refresh" data-icon-size="14"></span></button>
@@ -247,6 +217,7 @@
                               <div class="usage-bar" id="sessionContextBar" style="width:0%"></div>
                             </div>
                             <p class="usage-meta" id="sessionContextDetail" data-i18n="waitingContext">Waiting for context data.</p>
+                            <p class="usage-meta" id="sessionContextHint" data-i18n="contextOccupancyHint">Thinking, tool results, file reads, and edits share this window.</p>
                           </div>
                           <div class="usage-card session-context-card">
                           <div class="usage-card-head">
@@ -289,11 +260,40 @@
                   </div>
                 </div>
                 <div class="composer-right">
+                  <div class="chip-dd" id="ddModelEffort">
+                    <button type="button" class="chip-btn chip-model-effort" id="btnModelEffort" aria-haspopup="dialog" aria-expanded="false" title="Model and effort">
+                      <span class="chip-label" id="modelEffortLabel">Grok 4.7 High</span>
+                      <span class="chip-caret" data-icon="caret" data-icon-size="12" aria-hidden="true"></span>
+                    </button>
+                    <div class="chip-menu chip-menu-model-effort hidden" id="menuModelEffort" role="dialog" aria-label="Model and effort">
+                      <div class="model-effort-effort" id="effortLabel">High</div>
+                      <button type="button" class="model-effort-model" id="btnPickModel" aria-haspopup="listbox" aria-expanded="false">
+                        <span id="modelLabel">Model</span>
+                        <span class="chip-caret" data-icon="caret" data-icon-size="12" aria-hidden="true"></span>
+                      </button>
+                      <div class="chip-menu hidden" id="menuModel" role="listbox">
+                        <div id="menuModelOpts"></div>
+                      </div>
+                      <label class="effort-slider-label" for="effortSlider">Effort</label>
+                      <input id="effortSlider" class="effort-slider" type="range" min="0" max="3" step="1" value="2" aria-label="Effort">
+                      <div class="effort-ticks" id="effortTicks"></div>
+                      <div id="menuEffortOpts" hidden></div>
+                    </div>
+                    <select id="selModel" class="sr-only" tabindex="-1" aria-hidden="true">
+                      <option value="grok-4.7" selected>grok-4.7</option>
+                    </select>
+                    <select id="selEffort" class="sr-only" tabindex="-1" aria-hidden="true">
+                      <option value="low">Low</option>
+                      <option value="medium">Medium</option>
+                      <option value="high" selected>High</option>
+                      <option value="xhigh">xHigh</option>
+                    </select>
+                  </div>
                   <button id="btnVoice" class="ghost-icon voice-btn" type="button" data-i18n-title="voiceInput" data-i18n-aria="voiceInput" title="Voice input" aria-label="Voice input" aria-pressed="false">
                     <span data-icon="mic" data-icon-size="18"></span>
                   </button>
                   <button id="btnSend" class="send-btn" type="button" data-i18n-title="send" data-i18n-aria="send" title="Send" aria-label="Send">
-                    <span data-icon="send" data-icon-size="16"></span>
+                    <span data-icon="arrowUp" data-icon-size="16"></span>
                   </button>
                 </div>
               </div>

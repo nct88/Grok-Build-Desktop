@@ -575,8 +575,23 @@
         return;
       }
 
-      // Live stream: render Markdown directly if available, keeping md-streaming for CSS / testing contract
-      if (item.streaming || !structured) {
+      // While tokens are still arriving, keep the raw source. The session gate
+      // expects **markers** and no <strong> until the turn completes.
+      if (item.streaming) {
+        mdGenMap.set(item.id, (mdGenMap.get(item.id) || 0) + 1);
+        el.classList.add("md-body", "md-streaming");
+        el.classList.remove("md-structured");
+        delete el.dataset.mdPending;
+        if (el.dataset.streamText !== text || el.textContent !== text) {
+          el.dataset.streamText = text;
+          el.textContent = text;
+        }
+        heightCache.delete(item.id);
+        return;
+      }
+
+      // Unstructured fallback: render Markdown directly when the renderer is ready.
+      if (!structured) {
         // Cancel any in-flight structured render for this node
         mdGenMap.set(item.id, (mdGenMap.get(item.id) || 0) + 1);
         el.classList.add("md-body", "md-streaming");
@@ -589,13 +604,11 @@
             el.innerHTML = md.renderMarkdown(text);
             const isStreaming = Boolean(item.streaming);
             md.enhanceElement?.(el, opts.openExternal, isStreaming);
-            if (!isStreaming) {
-              pathLinks?.hydrate?.(el, {
-                onActivate: opts.onPathActivate,
-                onContext: opts.onPathContext,
-              });
-              hydrateImages(el);
-            }
+            pathLinks?.hydrate?.(el, {
+              onActivate: opts.onPathActivate,
+              onContext: opts.onPathContext,
+            });
+            hydrateImages(el);
           } else {
             el.classList.remove("md-structured");
             el.textContent = text;
